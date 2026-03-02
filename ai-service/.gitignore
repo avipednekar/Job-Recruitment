@@ -1,0 +1,12 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Environment variables (contains secret credentials!)
+.env
+
+# Upload temp files
+uploads/
+
+# Logs
+*.log
