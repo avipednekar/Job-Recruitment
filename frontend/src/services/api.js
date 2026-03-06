@@ -2,26 +2,32 @@ import axios from "axios";
 
 const API = axios.create({
   baseURL: "http://localhost:4000/api",
+  withCredentials: true,
 });
 
-// TODO: Add JWT token to headers when auth is implemented
-// API.interceptors.request.use((config) => {
-//     const token = localStorage.getItem('token');
-//     if (token) config.headers.Authorization = `Bearer ${token}`;
-//     return config;
-// });
+// Attach JWT token from localStorage to every request
+API.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
-// Resume Parser
+// Auth
+export const loginUser = (data) => API.post("/auth/login", data);
+export const registerUser = (data) => API.post("/auth/register", data);
+export const logoutUser = () => API.post("/auth/logout");
+export const getMe = () => API.get("/auth/me");
+
+// Candidates / Resume
 export const uploadResume = (formData) =>
-  API.post("/candidates/upload", formData);
-export const rankCandidates = (jobId) => API.get(`/candidates/match/${jobId}`);
+  API.post("/candidates/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 
 // Jobs
 export const createJob = (data) => API.post("/jobs", data);
 export const getJobs = () => API.get("/jobs");
-
-// Auth (skeleton)
-export const login = (data) => API.post("/auth/login", data);
-export const register = (data) => API.post("/auth/register", data);
 
 export default API;

@@ -15,9 +15,6 @@ import uuid
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from parser import parse_resume
-from matching import get_embedding, match_candidate_to_job
-
 app = Flask(__name__)
 CORS(app)
 
@@ -43,6 +40,8 @@ def health_check():
 @app.route("/parse", methods=["POST"])
 def parse():
     """Upload a PDF/DOCX resume → get structured JSON back."""
+    from parser import parse_resume
+
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -74,6 +73,8 @@ def parse():
 @app.route("/embed", methods=["POST"])
 def embed():
     """Takes text, returns a 384-dimensional semantic embedding."""
+    from matching import get_embedding
+
     data = request.json
     if not data or "text" not in data:
         return jsonify({"error": "Missing required field: text"}), 400
@@ -91,6 +92,8 @@ def embed():
 @app.route("/match", methods=["POST"])
 def match_candidate():
     """Takes job + candidate data, returns 7-factor AI match score."""
+    from matching import match_candidate_to_job
+
     data = request.json
     if not data or "job" not in data or "candidate_data" not in data:
         return jsonify({"error": "Missing required fields: job, candidate_data"}), 400

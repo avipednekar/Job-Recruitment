@@ -1,12 +1,34 @@
 import re
-import spacy
+from threading import Lock
 
-nlp = spacy.load("en_core_web_sm")
+_nlp = None
+_nlp_lock = Lock()
 
 EMAIL_REGEX = r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
 PHONE_REGEX = r"(\+?\d{1,3}[\s\-.]?)?\(?\d{2,5}\)?[\s\-.]?\d{3,5}[\s\-.]?\d{3,5}"
 LINKEDIN_REGEX = r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w\-]+"
 GITHUB_REGEX = r"(?:https?://)?(?:www\.)?github\.com/[\w\-]+"
+
+
+def _get_nlp():
+    """
+    Lazily load spaCy model on first name extraction call.
+    Returns None if model cannot be loaded, so heuristics still run.
+    """
+    global _nlp
+
+    if _nlp is not None:
+        return _nlp
+
+    with _nlp_lock:
+        if _nlp is None:
+            try:
+                import spacy
+                _nlp = spacy.load("en_core_web_sm")
+            except Exception:
+                _nlp = False
+
+    return _nlp if _nlp is not False else None
 
 
 def extract_name(text):
@@ -19,20 +41,22 @@ def extract_name(text):
     top_text = "\n".join(first_lines)
 
     # Strategy 1: spaCy NER
-    doc = nlp(top_text)
-    for ent in doc.ents:
-        if ent.label_ == "PERSON":
-            name = ent.text.strip()
-            # Strip newlines and everything after (NER can span lines)
-            if "\n" in name:
-                name = name.split("\n")[0].strip()
-            # Strip label text that may be attached
-            for label in ["phone", "email", "linkedin", "github", "address", "mobile"]:
-                name = re.sub(r"\s*" + label + r".*$", "", name, flags=re.IGNORECASE).strip()
-            # Validate: should be 2-4 words, mostly letters
-            words = name.split()
-            if 2 <= len(words) <= 4 and all(w.isalpha() for w in words):
-                return name
+    nlp = _get_nlp()
+    if nlp is not None:
+        doc = nlp(top_text)
+        for ent in doc.ents:
+            if ent.label_ == "PERSON":
+                name = ent.text.strip()
+                # Strip newlines and everything after (NER can span lines)
+                if "\n" in name:
+                    name = name.split("\n")[0].strip()
+                # Strip label text that may be attached
+                for label in ["phone", "email", "linkedin", "github", "address", "mobile"]:
+                    name = re.sub(r"\s*" + label + r".*$", "", name, flags=re.IGNORECASE).strip()
+                # Validate: should be 2-4 words, mostly letters
+                words = name.split()
+                if 2 <= len(words) <= 4 and all(w.isalpha() for w in words):
+                    return name
 
     # Strategy 2: Heuristic - look for a 2-4 word all-alpha line
     for line in first_lines:
