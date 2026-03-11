@@ -8,6 +8,8 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ResumeParser from "./pages/ResumeParser";
+import ProfileSetup from "./pages/ProfileSetup";
+import ProfileView from "./pages/ProfileView";
 
 function App() {
   return (
@@ -20,6 +22,22 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route
+                path="/profile/setup"
+                element={
+                  <ProfileSetupRoute>
+                    <ProfileSetup />
+                  </ProfileSetupRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfileView />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/resume-parser"
                 element={
@@ -50,6 +68,31 @@ function App() {
       </ThemeProvider>
     </Router>
   );
+}
+
+/**
+ * Profile setup route — requires auth but does NOT redirect to /profile/setup
+ * (to avoid infinite redirect loop).
+ */
+import { Navigate } from "react-router-dom";
+import { useAuth } from "./context/useAuth";
+
+function ProfileSetupRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
 }
 
 export default App;

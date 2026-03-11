@@ -46,9 +46,14 @@ const Navbar = () => {
               Home
             </Link>
             {isAuthenticated ? (
-              <Link className={linkClass("/resume-parser")} to="/resume-parser">
-                Resume Parser
-              </Link>
+              <>
+                <Link className={linkClass("/profile")} to="/profile">
+                  Profile
+                </Link>
+                <Link className={linkClass("/resume-parser")} to="/resume-parser">
+                  Resume Parser
+                </Link>
+              </>
             ) : null}
           </div>
 
@@ -100,9 +105,14 @@ const Navbar = () => {
             Home
           </Link>
           {isAuthenticated ? (
-            <Link to="/resume-parser" className={cn("block", linkClass("/resume-parser"))} onClick={closeMenu}>
-              Resume Parser
-            </Link>
+            <>
+              <Link to="/profile" className={cn("block", linkClass("/profile"))} onClick={closeMenu}>
+                Profile
+              </Link>
+              <Link to="/resume-parser" className={cn("block", linkClass("/resume-parser"))} onClick={closeMenu}>
+                Resume Parser
+              </Link>
+            </>
           ) : null}
 
           <div className="mt-3 border-t border-border pt-3 space-y-2">

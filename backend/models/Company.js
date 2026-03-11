@@ -8,6 +8,13 @@ const companySchema = new mongoose.Schema(
     website: { type: String, default: "" },
     location: { type: String, default: "" },
     logo: { type: String, default: "" },
+    industry: { type: String, default: "" },
+    size: {
+      type: String,
+      enum: ["", "small", "medium", "large", "enterprise"],
+      default: "",
+    },
+    founded: { type: String, default: "" },
   },
   { timestamps: true },
 );

@@ -34,9 +34,9 @@ const Register = () => {
 
     setLoading(true);
     try {
-      const data = await register(formData.name, formData.email, formData.password, formData.role);
+      await register(formData.name, formData.email, formData.password, formData.role);
       toast.success("Account created successfully");
-      navigate(data.user.role === "job_seeker" ? "/resume-parser" : "/");
+      navigate("/profile/setup");
     } catch (error) {
       toast.error(error.response?.data?.error || "Registration failed");
     } finally {

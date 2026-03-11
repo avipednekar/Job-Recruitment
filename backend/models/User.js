@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema(
     phone: { type: String, default: "" },
     linkedin: { type: String, default: "" },
     avatar: { type: String, default: "" },
+    profileComplete: { type: Boolean, default: false },
     candidate: { type: mongoose.Schema.Types.ObjectId, ref: "Candidate" },
   },
   { timestamps: true },

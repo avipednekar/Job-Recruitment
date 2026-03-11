@@ -26,7 +26,13 @@ const sendTokenResponse = (res, statusCode, user, token) => {
   res.status(statusCode).json({
     success: true,
     token,
-    user: { id: user._id, name: user.name, email: user.email, role: user.role },
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      profileComplete: user.profileComplete || false,
+    },
   });
 };
 
@@ -129,6 +135,7 @@ export const getMe = async (req, res) => {
         phone: user.phone,
         linkedin: user.linkedin,
         candidate: user.candidate,
+        profileComplete: user.profileComplete || false,
         createdAt: user.createdAt,
       },
     });

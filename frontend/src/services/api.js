@@ -28,6 +28,15 @@ export const uploadResume = (formData) =>
 
 // Jobs
 export const createJob = (data) => API.post("/jobs", data);
-export const getJobs = () => API.get("/jobs");
+export const searchJobs = (params = {}) => API.get("/jobs", { params });
+export const getJobById = (id) => API.get(`/jobs/${id}`);
+
+// Profile
+export const getProfile = () => API.get("/profile/me");
+export const createJobSeekerProfile = (data) =>
+  API.post("/profile/job-seeker", data);
+export const createCompanyProfile = (data) =>
+  API.post("/profile/company", data);
+export const updateProfile = (data) => API.put("/profile/me", data);
 
 export default API;
