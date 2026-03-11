@@ -30,6 +30,12 @@ export const uploadResume = (formData) =>
 export const createJob = (data) => API.post("/jobs", data);
 export const searchJobs = (params = {}) => API.get("/jobs", { params });
 export const getJobById = (id) => API.get(`/jobs/${id}`);
+export const updateJob = (id, data) => API.put(`/jobs/${id}`, data);
+export const deleteJob = (id) => API.delete(`/jobs/${id}`);
+export const getMyJobs = () => API.get("/jobs/my");
+
+// External Jobs
+export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { params });
 
 // Profile
 export const getProfile = () => API.get("/profile/me");

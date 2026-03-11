@@ -174,3 +174,114 @@ export const createJob = async (req, res) => {
     res.status(500).json({ error: "Failed to create job" });
   }
 };
+
+/* ──────────────────────────────────────────────
+   PUT /api/jobs/:id — Update job (recruiter only)
+   ────────────────────────────────────────────── */
+export const updateJob = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    // Ensure the user updating the job is the one who posted it, or an admin
+    if (job.postedBy.toString() !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized to update this job" });
+    }
+
+    const {
+      title,
+      description,
+      company,
+      location,
+      experience_level,
+      salary_range,
+      salary_min,
+      salary_max,
+      skills,
+      employment_type,
+      remote,
+      urgent,
+      logo,
+      logoColor,
+      status, // Can change status to closed or draft
+    } = req.body;
+
+    if (title) job.title = title;
+    if (description) job.description = description;
+    if (company !== undefined) job.company = company;
+    if (location !== undefined) job.location = location;
+    if (experience_level !== undefined) job.experience_level = experience_level;
+    if (salary_range !== undefined) job.salary_range = salary_range;
+    if (salary_min !== undefined) job.salary_min = salary_min;
+    if (salary_max !== undefined) job.salary_max = salary_max;
+    if (skills !== undefined) job.skills = skills;
+    if (employment_type !== undefined) job.employment_type = employment_type;
+    if (remote !== undefined) job.remote = remote;
+    if (urgent !== undefined) job.urgent = urgent;
+    if (logo !== undefined) job.logo = logo;
+    if (logoColor !== undefined) job.logoColor = logoColor;
+    if (status !== undefined) job.status = status;
+
+    // Recalculate embeddings only if title or description changed
+    if (title || description) {
+      try {
+        const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
+          text: `${job.title} ${job.description}`,
+        });
+        job.embedding = embedRes.data.embedding;
+      } catch {
+        console.warn("AI service unavailable — updating job without new embedding");
+      }
+    }
+
+    await job.save();
+    res.json({ success: true, job });
+  } catch (error) {
+    console.error("Job Update Error:", error.message);
+    res.status(500).json({ error: "Failed to update job" });
+  }
+};
+
+/* ──────────────────────────────────────────────
+   DELETE /api/jobs/:id — Delete job (recruiter only)
+   ────────────────────────────────────────────── */
+export const deleteJob = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    if (job.postedBy.toString() !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ error: "Not authorized to delete this job" });
+    }
+
+    await job.deleteOne();
+    res.json({ success: true, message: "Job deleted successfully" });
+  } catch (error) {
+    console.error("Job Delete Error:", error.message);
+    res.status(500).json({ error: "Failed to delete job" });
+  }
+};
+
+/* ──────────────────────────────────────────────
+   GET /api/jobs/my — Get jobs posted by the logged-in recruiter
+   ────────────────────────────────────────────── */
+export const getMyJobs = async (req, res) => {
+  try {
+    const jobs = await Job.find({ postedBy: req.user.id })
+      .select("-embedding")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({ success: true, count: jobs.length, jobs });
+  } catch (error) {
+    console.error("Get My Jobs Error:", error.message);
+    res.status(500).json({ error: "Failed to fetch your jobs" });
+  }
+};
+

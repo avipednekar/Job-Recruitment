@@ -35,15 +35,16 @@ const Navbar = () => {
       <nav className="section-container">
         <div className="flex h-[4.75rem] items-center justify-between gap-4">
           <Link to="/" className="inline-flex items-center gap-2.5" onClick={closeMenu}>
-            <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-primary-strong to-accent text-white shadow-md">
-              <FaBrain className="size-5" />
-            </span>
+            <img src="/images/logo.png" alt="RecruitAI" className="size-10 rounded-2xl shadow-md" />
             <span className="font-display text-xl tracking-tight text-text-primary">RecruitAI</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-2">
             <Link className={linkClass("/")} to="/">
               Home
+            </Link>
+            <Link className={linkClass("/jobs")} to="/jobs">
+              Jobs
             </Link>
             {isAuthenticated ? (
               <>
@@ -103,6 +104,9 @@ const Navbar = () => {
         <div className="section-container space-y-2 py-3 bg-surface">
           <Link to="/" className={cn("block", linkClass("/"))} onClick={closeMenu}>
             Home
+          </Link>
+          <Link to="/jobs" className={cn("block", linkClass("/jobs"))} onClick={closeMenu}>
+            Jobs
           </Link>
           {isAuthenticated ? (
             <>

@@ -5,6 +5,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
+import Jobs from "./pages/Jobs";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ResumeParser from "./pages/ResumeParser";
@@ -20,6 +21,7 @@ function App() {
             <Navbar />
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/jobs" element={<Jobs />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route
@@ -60,8 +62,8 @@ function App() {
                 borderRadius: "12px",
                 fontSize: "14px",
               },
-              success: { iconTheme: { primary: "var(--color-success)", secondary: "var(--color-surface)" } },
-              error: { iconTheme: { primary: "var(--color-error)", secondary: "var(--color-surface)" } },
+              success: { iconTheme: { primary: "#2176FF", secondary: "#fff" } },
+              error: { iconTheme: { primary: "#F79824", secondary: "#fff" } },
             }}
           />
         </AuthProvider>

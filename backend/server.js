@@ -8,6 +8,7 @@ import jobRoutes from "./routes/job.routes.js";
 import candidateRoutes from "./routes/candidate.routes.js";
 import applicationRoutes from "./routes/application.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
+import externalJobsRoutes from "./routes/external-jobs.routes.js";
 
 // Load env vars
 dotenv.config();
@@ -30,6 +31,7 @@ app.use(cookieParser());
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/jobs", jobRoutes);
+app.use("/api/external-jobs", externalJobsRoutes);
 app.use("/api/candidates", candidateRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/profile", profileRoutes);

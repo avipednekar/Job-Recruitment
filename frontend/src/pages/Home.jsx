@@ -1,417 +1,423 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
-  FaMapMarkerAlt,
-  FaBriefcase,
-  FaSearch,
-  FaBookmark,
-  FaRegBookmark,
-} from "react-icons/fa";
-import {
-  HiSparkles,
-  HiArrowRight,
-  HiChevronDown,
-  HiChevronUp,
-} from "react-icons/hi";
+  Brain,
+  FileSearch,
+  SlidersHorizontal,
+  BarChart3,
+  Target,
+  Zap,
+  Upload,
+  Sparkles,
+  Briefcase,
+  ArrowRight,
+  Star,
+  Send,
+  Video,
+  MessageSquare,
+  ClipboardCheck,
+  Smartphone,
+  Quote,
+  CheckCircle2,
+  ChevronRight,
+} from "lucide-react";
+import toast from "react-hot-toast";
 import Footer from "../components/Footer";
-import { useAuth } from "../context/useAuth";
-import { searchJobs } from "../services/api";
-
-const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
-const EXP_LEVELS = ["Entry Level", "1-3 yrs", "3+ yrs", "5+ yrs", "Lead / Manager"];
 
 /* ──────────────────────────────────────────────
-   Custom Checkbox
+   FEATURE CARDS DATA
    ────────────────────────────────────────────── */
-const CheckBox = ({ label, checked, onChange }) => (
-  <label className="home-checkbox">
-    <span className={`home-checkbox-box ${checked ? "home-checkbox-box--checked" : ""}`}>
-      {checked && (
-        <svg viewBox="0 0 12 10" fill="none" className="home-checkbox-tick">
-          <path d="M1 5.5L4 8.5L11 1.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </span>
-    <span className="home-checkbox-label">{label}</span>
-  </label>
-);
+const FEATURES = [
+  {
+    icon: <Brain className="w-7 h-7" />,
+    title: "AI-Powered Matching",
+    desc: "Our semantic matching engine uses deep learning embeddings to connect candidates with their ideal roles — going far beyond keyword matching.",
+    color: "#2176FF",
+  },
+  {
+    icon: <FileSearch className="w-7 h-7" />,
+    title: "Smart Resume Parser",
+    desc: "Upload any PDF or DOCX resume and our NLP pipeline automatically extracts skills, education, experience, and projects in seconds.",
+    color: "#33A1FD",
+  },
+  {
+    icon: <SlidersHorizontal className="w-7 h-7" />,
+    title: "Advanced Filters",
+    desc: "Find exactly what you need with filters for job type, salary range, location, remote work, experience level, and industry.",
+    color: "#F79824",
+  },
+  {
+    icon: <Target className="w-7 h-7" />,
+    title: "Skill Gap Analysis",
+    desc: "Identify missing skills for your dream job and get personalized learning paths with curated courses and certifications.",
+    color: "#FDCA40",
+  },
+  {
+    icon: <BarChart3 className="w-7 h-7" />,
+    title: "Analytics Dashboard",
+    desc: "Track your recruitment pipeline, time-to-hire, application status, and candidate performance with beautiful visual reports.",
+    color: "#2176FF",
+  },
+  {
+    icon: <Zap className="w-7 h-7" />,
+    title: "Instant Notifications",
+    desc: "Get real-time updates on job matches, application status changes, interview invitations, and recruiter messages.",
+    color: "#F79824",
+  },
+];
 
 /* ──────────────────────────────────────────────
-   Salary Range Slider
+   HOW IT WORKS STEPS
    ────────────────────────────────────────────── */
-const SalarySlider = ({ value, onChange }) => {
-  const pct = ((value - 0) / 300) * 100;
-  return (
-    <div className="home-slider-wrap">
-      <div className="home-slider-header">
-        <span>Salary Range</span>
-        <span className="home-slider-value">${value}k+</span>
-      </div>
-      <div className="home-slider-track-wrap">
-        <div className="home-slider-track">
-          <div className="home-slider-fill" style={{ width: `${pct}%` }} />
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={300}
-          step={10}
-          value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="home-slider-input"
-        />
-      </div>
-      <div className="home-slider-labels">
-        <span>$0k</span>
-        <span>$300k</span>
-      </div>
-    </div>
-  );
-};
+const STEPS = [
+  {
+    num: "01",
+    icon: <Upload className="w-8 h-8" />,
+    title: "Upload Your Resume",
+    desc: "Drop your resume and our AI parses it instantly — extracting skills, experience, education, and building your profile automatically.",
+  },
+  {
+    num: "02",
+    icon: <Sparkles className="w-8 h-8" />,
+    title: "AI Matches You",
+    desc: "Our matching engine compares your profile against thousands of jobs using semantic similarity, skill overlap, and preference alignment.",
+  },
+  {
+    num: "03",
+    icon: <Briefcase className="w-8 h-8" />,
+    title: "Get Hired",
+    desc: "Apply to your top matches with one click, track your application in real-time, and receive feedback from recruiters directly.",
+  },
+];
 
 /* ──────────────────────────────────────────────
-   Filter Sidebar Section
+   TESTIMONIALS
    ────────────────────────────────────────────── */
-const FilterSection = ({ title, children, defaultOpen = true }) => {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="home-filter-section">
-      <button onClick={() => setOpen((p) => !p)} className="home-filter-toggle" type="button">
-        <span>{title}</span>
-        {open ? <HiChevronUp className="w-4 h-4" /> : <HiChevronDown className="w-4 h-4" />}
-      </button>
-      {open && <div className="home-filter-body">{children}</div>}
-    </div>
-  );
-};
+const TESTIMONIALS = [
+  {
+    name: "Priya Sharma",
+    role: "Software Engineer at Google",
+    photo: "/images/person1.png",
+    quote: "RecruitAI completely transformed my job search. The AI matching was incredibly accurate — I found my dream role at Google within two weeks of signing up. The resume parser saved me hours of manual data entry.",
+    stars: 5,
+  },
+  {
+    name: "Michael Chen",
+    role: "VP of Talent at Stripe",
+    photo: "/images/person2.png",
+    quote: "As a recruiter, RecruitAI has cut our time-to-hire by 60%. The candidate matching is leagues ahead of traditional ATS systems. We've hired 40+ engineers through the platform this quarter alone.",
+    stars: 5,
+  },
+  {
+    name: "Amara Johnson",
+    role: "Product Designer at Figma",
+    photo: "/images/person3.png",
+    quote: "The skill gap analysis feature is a game-changer. It showed me exactly what I needed to learn to level up, recommended specific courses, and I landed a senior role within three months.",
+    stars: 5,
+  },
+];
 
 /* ──────────────────────────────────────────────
-   Loading skeleton card
+   FUTURE SCOPE ROADMAP
    ────────────────────────────────────────────── */
-const SkeletonCard = () => (
-  <div className="home-job-card" style={{ opacity: 0.5 }}>
-    <div className="home-job-card-top">
-      <span className="home-company-logo" style={{ background: "#dfe3ea" }}>&nbsp;</span>
-    </div>
-    <div style={{ height: "1rem", width: "70%", background: "#e8ebf0", borderRadius: 8, marginBottom: 6 }} />
-    <div style={{ height: "0.75rem", width: "40%", background: "#e8ebf0", borderRadius: 6, marginBottom: 12 }} />
-    <div style={{ height: "0.75rem", width: "50%", background: "#e8ebf0", borderRadius: 6, marginBottom: 8 }} />
-    <div style={{ height: "0.85rem", width: "35%", background: "#e8ebf0", borderRadius: 6, marginBottom: 14 }} />
-    <div className="home-job-tags">
-      {[1, 2, 3].map((i) => (
-        <span key={i} style={{ display: "inline-block", height: "1.2rem", width: "3.5rem", background: "#e8ebf0", borderRadius: 99 }} />
-      ))}
-    </div>
-  </div>
-);
+const ROADMAP = [
+  {
+    icon: <Video className="w-6 h-6" />,
+    title: "AI Video Interviews",
+    desc: "Automated video interviews with real-time AI analysis of communication skills, confidence, and technical knowledge.",
+    status: "Coming Q3 2026",
+  },
+  {
+    icon: <MessageSquare className="w-6 h-6" />,
+    title: "AI Screening Chatbot",
+    desc: "An intelligent chatbot that conducts initial candidate screening, asks contextual questions, and generates comprehensive reports.",
+    status: "Coming Q4 2026",
+  },
+  {
+    icon: <ClipboardCheck className="w-6 h-6" />,
+    title: "Technical Assessments",
+    desc: "Built-in coding challenges, design exercises, and soft-skill assessments tailored to each job's requirements.",
+    status: "Coming Q1 2027",
+  },
+  {
+    icon: <Smartphone className="w-6 h-6" />,
+    title: "Mobile App",
+    desc: "Full-featured iOS and Android apps so you can search, apply, and track applications on the go.",
+    status: "Coming Q2 2027",
+  },
+];
 
 /* ──────────────────────────────────────────────
-   Job Card
+   STATS COUNTER
    ────────────────────────────────────────────── */
-const JobCard = ({ job }) => {
-  const [saved, setSaved] = useState(false);
-  return (
-    <div className="home-job-card animate-fade-in-up">
-      {job.urgent && (
-        <span className="home-badge-urgent">
-          <HiSparkles className="w-3 h-3" /> Urgent Hiring
-        </span>
-      )}
-
-      <div className="home-job-card-top">
-        <span className="home-company-logo" style={{ background: job.logoColor || "#2176FF" }}>
-          {job.logo || job.company?.charAt(0) || "?"}
-        </span>
-        <button
-          className="home-bookmark-btn"
-          onClick={() => setSaved((p) => !p)}
-          aria-label={saved ? "Unsave job" : "Save job"}
-        >
-          {saved ? <FaBookmark className="w-4 h-4" /> : <FaRegBookmark className="w-4 h-4" />}
-        </button>
-      </div>
-
-      <h3 className="home-job-title">{job.title}</h3>
-      <p className="home-job-company">{job.company}</p>
-
-      <div className="home-job-meta">
-        <span><FaMapMarkerAlt className="w-3 h-3" /> {job.location || "Not specified"}</span>
-        <span><FaBriefcase className="w-3 h-3" /> {job.employment_type || "Full-time"}</span>
-      </div>
-
-      <p className="home-job-salary">{job.salary_range || "Salary not disclosed"}</p>
-
-      <div className="home-job-tags">
-        {(job.skills || []).map((tag) => (
-          <span key={tag} className="home-skill-tag">{tag}</span>
-        ))}
-        {job.remote && <span className="home-remote-tag">Remote</span>}
-      </div>
-
-      <div className="home-job-card-footer">
-        <span className="home-posted">
-          {job.createdAt ? timeAgo(job.createdAt) : "Recently"}
-        </span>
-        <Link to={`/login`} className="home-apply-btn">
-          Apply Now <HiArrowRight className="w-4 h-4" />
-        </Link>
-      </div>
-    </div>
-  );
-};
-
-/** Simple relative time helper */
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+const STATS = [
+  { value: "600+", label: "Active Jobs" },
+  { value: "120+", label: "Top Companies" },
+  { value: "98%", label: "AI Match Rate" },
+  { value: "10k+", label: "Happy Users" },
+];
 
 /* ──────────────────────────────────────────────
-   HOME PAGE
+   ANIMATED COUNTER
    ────────────────────────────────────────────── */
-const Home = () => {
-  const { isAuthenticated } = useAuth();
-
-  /* Search state */
-  const [searchTitle, setSearchTitle] = useState("");
-  const [searchLocation, setSearchLocation] = useState("");
-  const [searchExperience, setSearchExperience] = useState("");
-
-  /* Filter state */
-  const [selectedTypes, setSelectedTypes] = useState([]);
-  const [selectedExp, setSelectedExp] = useState([]);
-  const [salaryMin, setSalaryMin] = useState(0);
-  const [remoteOnly, setRemoteOnly] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-
-  /* Data state */
-  const [jobs, setJobs] = useState([]);
-  const [totalJobs, setTotalJobs] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const toggleFilter = (arr, setArr, val) =>
-    setArr((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
-
-  /* Build query params and fetch */
-  const fetchJobs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {};
-      if (searchTitle.trim()) params.q = searchTitle.trim();
-      if (searchLocation.trim()) params.location = searchLocation.trim();
-      if (searchExperience.trim()) params.experience = searchExperience.trim();
-      if (selectedTypes.length > 0) params.type = selectedTypes.join(",");
-      if (remoteOnly) params.remote = "true";
-      if (salaryMin > 0) params.salaryMin = salaryMin;
-
-      const { data } = await searchJobs(params);
-      setJobs(data.jobs || []);
-      setTotalJobs(data.totalJobs || 0);
-    } catch (err) {
-      console.error("Failed to fetch jobs:", err);
-      setError("Could not load jobs. Is the backend running?");
-      setJobs([]);
-      setTotalJobs(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchTitle, searchLocation, searchExperience, selectedTypes, remoteOnly, salaryMin]);
-
-  /* Debounced fetch — triggers 400ms after any filter/search change */
+const AnimatedStat = ({ value, label }) => {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(fetchJobs, 400);
-    return () => clearTimeout(timer);
-  }, [fetchJobs]);
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setVisible(true); }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className={`landing-stat ${visible ? "landing-stat--visible" : ""}`}>
+      <span className="landing-stat-value">{value}</span>
+      <span className="landing-stat-label">{label}</span>
+    </div>
+  );
+};
 
-  /* Search handler (for button click) */
-  const handleSearch = (e) => {
+/* ══════════════════════════════════════════════
+   HOME / LANDING PAGE
+   ══════════════════════════════════════════════ */
+const Home = () => {
+  const [feedbackForm, setFeedbackForm] = useState({ name: "", email: "", message: "" });
+  const [sending, setSending] = useState(false);
+
+  const handleFeedback = async (e) => {
     e.preventDefault();
-    fetchJobs();
+    if (!feedbackForm.name || !feedbackForm.email || !feedbackForm.message) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+    setSending(true);
+    // Simulate API call
+    await new Promise((r) => setTimeout(r, 1200));
+    toast.success("Thank you for your feedback! We'll get back to you soon.");
+    setFeedbackForm({ name: "", email: "", message: "" });
+    setSending(false);
   };
 
   return (
-    <div className="page-shell">
+    <div className="page-shell page-transition">
       <main>
-        {/* ═══════ Hero Search ═══════ */}
-        <section className="home-hero">
-          <div className="home-hero-bg-orb home-hero-bg-orb--1" />
-          <div className="home-hero-bg-orb home-hero-bg-orb--2" />
+        {/* ═══════════════════════════════════════
+            SECTION 1 — HERO
+           ═══════════════════════════════════════ */}
+        <section className="landing-hero">
+          <div className="landing-hero-bg-orb landing-hero-bg-orb--1" />
+          <div className="landing-hero-bg-orb landing-hero-bg-orb--2" />
+          <div className="landing-hero-bg-orb landing-hero-bg-orb--3" />
 
-          <div className="section-container home-hero-inner">
-            <h1 className="home-hero-title">
-              Find your next <span className="home-hero-accent">dream job</span>
-            </h1>
-            <p className="home-hero-sub">
-              Discover opportunities from top companies, matched by AI.
-            </p>
-
-            {/* Search bar */}
-            <form className="home-search-bar" onSubmit={handleSearch}>
-              <div className="home-search-field">
-                <FaSearch className="home-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Job title or keyword"
-                  value={searchTitle}
-                  onChange={(e) => setSearchTitle(e.target.value)}
-                  className="home-search-input"
-                />
+          <div className="section-container landing-hero-inner">
+            <div className="landing-hero-content">
+              <span className="landing-hero-badge">
+                <Sparkles className="w-4 h-4" /> AI-Powered Recruitment Platform
+              </span>
+              <h1 className="landing-hero-title">
+                Hire Smarter. <br />
+                <span className="landing-hero-accent">Get Hired Faster.</span>
+              </h1>
+              <p className="landing-hero-sub">
+                RecruitAI uses advanced machine learning to match candidates with their perfect roles. 
+                Upload your resume, let our AI analyze your profile, and discover opportunities 
+                tailored to your skills and aspirations.
+              </p>
+              <div className="landing-hero-ctas">
+                <Link to="/jobs" className="landing-btn landing-btn--primary">
+                  <Briefcase className="w-5 h-5" /> Browse Jobs
+                </Link>
+                <Link to="/register" className="landing-btn landing-btn--outline">
+                  Get Started Free <ArrowRight className="w-5 h-5" />
+                </Link>
               </div>
-              <span className="home-search-divider" />
-              <div className="home-search-field">
-                <FaMapMarkerAlt className="home-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Location"
-                  value={searchLocation}
-                  onChange={(e) => setSearchLocation(e.target.value)}
-                  className="home-search-input"
-                />
+              <div className="landing-hero-trust">
+                <div className="landing-hero-avatars">
+                  <img src="/images/person1.png" alt="User" className="landing-hero-avatar" />
+                  <img src="/images/person2.png" alt="User" className="landing-hero-avatar" />
+                  <img src="/images/person3.png" alt="User" className="landing-hero-avatar" />
+                </div>
+                <span className="landing-hero-trust-text">
+                  <strong>10,000+</strong> professionals already onboard
+                </span>
               </div>
-              <span className="home-search-divider" />
-              <div className="home-search-field">
-                <FaBriefcase className="home-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Experience"
-                  value={searchExperience}
-                  onChange={(e) => setSearchExperience(e.target.value)}
-                  className="home-search-input"
-                />
-              </div>
-              <button type="submit" className="home-search-btn">
-                <FaSearch className="w-4 h-4" />
-                <span className="home-search-btn-text">Search</span>
-              </button>
-            </form>
-
-            {/* Quick stats */}
-            <div className="home-hero-stats">
-              <div className="home-hero-stat">
-                <span className="home-hero-stat-num">{totalJobs}</span>
-                <span className="home-hero-stat-lbl">Jobs</span>
-              </div>
-              <span className="home-hero-stat-sep" />
-              <div className="home-hero-stat">
-                <span className="home-hero-stat-num">120+</span>
-                <span className="home-hero-stat-lbl">Companies</span>
-              </div>
-              <span className="home-hero-stat-sep" />
-              <div className="home-hero-stat">
-                <span className="home-hero-stat-num">98%</span>
-                <span className="home-hero-stat-lbl">AI Match Rate</span>
-              </div>
+            </div>
+            <div className="landing-hero-visual">
+              <img src="/images/hero.png" alt="RecruitAI Platform" className="landing-hero-img" />
             </div>
           </div>
         </section>
 
-        {/* ═══════ Content: Sidebar + Feed ═══════ */}
-        <section className="home-content section-container">
-          <button
-            className="home-mobile-filter-btn"
-            onClick={() => setShowMobileFilters((p) => !p)}
-          >
-            Filters {showMobileFilters ? <HiChevronUp className="w-4 h-4" /> : <HiChevronDown className="w-4 h-4" />}
-          </button>
+        {/* ═══════════════════════════════════════
+            SECTION 2 — STATS
+           ═══════════════════════════════════════ */}
+        <section className="landing-stats-section">
+          <div className="section-container landing-stats-grid">
+            {STATS.map((s) => (
+              <AnimatedStat key={s.label} value={s.value} label={s.label} />
+            ))}
+          </div>
+        </section>
 
-          <div className="home-content-grid">
-            {/* ── Sidebar ── */}
-            <aside className={`home-sidebar ${showMobileFilters ? "home-sidebar--open" : ""}`}>
-              <div className="home-sidebar-header">
-                <h2 className="home-sidebar-title">Filters</h2>
-                <button
-                  className="home-sidebar-clear"
-                  onClick={() => {
-                    setSelectedTypes([]);
-                    setSelectedExp([]);
-                    setSalaryMin(0);
-                    setRemoteOnly(false);
-                  }}
-                >
-                  Clear all
-                </button>
+        {/* ═══════════════════════════════════════
+            SECTION 3 — FEATURES
+           ═══════════════════════════════════════ */}
+        <section className="landing-section" id="features">
+          <div className="section-container">
+            <div className="landing-section-header">
+              <span className="landing-section-tag"><Zap className="w-4 h-4" /> Features</span>
+              <h2 className="landing-section-title">Everything you need to recruit — or get recruited</h2>
+              <p className="landing-section-sub">From AI resume parsing to candidate matching, our platform covers the entire hiring lifecycle.</p>
+            </div>
+            <div className="landing-features-grid">
+              {FEATURES.map((f) => (
+                <div key={f.title} className="landing-feature-card">
+                  <div className="landing-feature-icon" style={{ background: `${f.color}15`, color: f.color }}>
+                    {f.icon}
+                  </div>
+                  <h3 className="landing-feature-title">{f.title}</h3>
+                  <p className="landing-feature-desc">{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════
+            SECTION 4 — HOW IT WORKS
+           ═══════════════════════════════════════ */}
+        <section className="landing-section landing-section--alt" id="how-it-works">
+          <div className="section-container">
+            <div className="landing-section-header">
+              <span className="landing-section-tag"><CheckCircle2 className="w-4 h-4" /> How It Works</span>
+              <h2 className="landing-section-title">From resume to offer in 3 simple steps</h2>
+              <p className="landing-section-sub">Our streamlined process gets you matched and hired faster than ever.</p>
+            </div>
+            <div className="landing-steps-grid">
+              {STEPS.map((s) => (
+                <div key={s.num} className="landing-step-card">
+                  <span className="landing-step-num">{s.num}</span>
+                  <div className="landing-step-icon">{s.icon}</div>
+                  <h3 className="landing-step-title">{s.title}</h3>
+                  <p className="landing-step-desc">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════
+            SECTION 5 — TESTIMONIALS
+           ═══════════════════════════════════════ */}
+        <section className="landing-section" id="testimonials">
+          <div className="section-container">
+            <div className="landing-section-header">
+              <span className="landing-section-tag"><Star className="w-4 h-4" /> Testimonials</span>
+              <h2 className="landing-section-title">Loved by recruiters & candidates alike</h2>
+              <p className="landing-section-sub">See what our users have to say about their experience with RecruitAI.</p>
+            </div>
+            <div className="landing-testimonials-grid">
+              {TESTIMONIALS.map((t) => (
+                <div key={t.name} className="landing-testimonial-card">
+                  <Quote className="landing-testimonial-quote-icon" />
+                  <p className="landing-testimonial-text">{t.quote}</p>
+                  <div className="landing-testimonial-stars">
+                    {Array.from({ length: t.stars }).map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-current" />
+                    ))}
+                  </div>
+                  <div className="landing-testimonial-author">
+                    <img src={t.photo} alt={t.name} className="landing-testimonial-avatar" />
+                    <div>
+                      <span className="landing-testimonial-name">{t.name}</span>
+                      <span className="landing-testimonial-role">{t.role}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════
+            SECTION 6 — FUTURE SCOPE / ROADMAP
+           ═══════════════════════════════════════ */}
+        <section className="landing-section landing-section--alt" id="roadmap">
+          <div className="section-container">
+            <div className="landing-section-header">
+              <span className="landing-section-tag"><ChevronRight className="w-4 h-4" /> Roadmap</span>
+              <h2 className="landing-section-title">What's coming next</h2>
+              <p className="landing-section-sub">We're constantly building new features to make recruitment smarter.</p>
+            </div>
+            <div className="landing-roadmap-grid">
+              {ROADMAP.map((r) => (
+                <div key={r.title} className="landing-roadmap-card">
+                  <div className="landing-roadmap-icon">{r.icon}</div>
+                  <div className="landing-roadmap-content">
+                    <h3 className="landing-roadmap-title">{r.title}</h3>
+                    <p className="landing-roadmap-desc">{r.desc}</p>
+                    <span className="landing-roadmap-status">{r.status}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════
+            SECTION 7 — FEEDBACK FORM
+           ═══════════════════════════════════════ */}
+        <section className="landing-section" id="feedback">
+          <div className="section-container">
+            <div className="landing-section-header">
+              <span className="landing-section-tag"><Send className="w-4 h-4" /> Feedback</span>
+              <h2 className="landing-section-title">We'd love to hear from you</h2>
+              <p className="landing-section-sub">Have a suggestion, found a bug, or just want to say hello? Drop us a message.</p>
+            </div>
+            <form className="landing-feedback-form" onSubmit={handleFeedback}>
+              <div className="landing-feedback-row">
+                <div className="landing-feedback-field">
+                  <label htmlFor="fb-name">Your Name</label>
+                  <input id="fb-name" type="text" placeholder="John Doe"
+                    value={feedbackForm.name} onChange={(e) => setFeedbackForm((p) => ({ ...p, name: e.target.value }))} />
+                </div>
+                <div className="landing-feedback-field">
+                  <label htmlFor="fb-email">Email Address</label>
+                  <input id="fb-email" type="email" placeholder="john@example.com"
+                    value={feedbackForm.email} onChange={(e) => setFeedbackForm((p) => ({ ...p, email: e.target.value }))} />
+                </div>
               </div>
-
-              <FilterSection title="Job Type">
-                {JOB_TYPES.map((t) => (
-                  <CheckBox
-                    key={t}
-                    label={t}
-                    checked={selectedTypes.includes(t)}
-                    onChange={() => toggleFilter(selectedTypes, setSelectedTypes, t)}
-                  />
-                ))}
-              </FilterSection>
-
-              <FilterSection title="Experience Level">
-                {EXP_LEVELS.map((e) => (
-                  <CheckBox
-                    key={e}
-                    label={e}
-                    checked={selectedExp.includes(e)}
-                    onChange={() => toggleFilter(selectedExp, setSelectedExp, e)}
-                  />
-                ))}
-              </FilterSection>
-
-              <FilterSection title="Salary">
-                <SalarySlider value={salaryMin} onChange={setSalaryMin} />
-              </FilterSection>
-
-              <FilterSection title="Remote">
-                <CheckBox label="Remote only" checked={remoteOnly} onChange={() => setRemoteOnly((p) => !p)} />
-              </FilterSection>
-            </aside>
-
-            {/* ── Job Feed ── */}
-            <div className="home-feed">
-              <div className="home-feed-header">
-                <h2 className="home-feed-title">
-                  Recommended for you
-                  <span className="home-feed-count">{totalJobs} jobs</span>
-                </h2>
+              <div className="landing-feedback-field">
+                <label htmlFor="fb-message">Your Message</label>
+                <textarea id="fb-message" rows={5} placeholder="Tell us what's on your mind..."
+                  value={feedbackForm.message} onChange={(e) => setFeedbackForm((p) => ({ ...p, message: e.target.value }))} />
               </div>
+              <button type="submit" className="landing-btn landing-btn--primary" disabled={sending}>
+                {sending ? (
+                  <><span className="landing-spinner" /> Sending...</>
+                ) : (
+                  <><Send className="w-5 h-5" /> Send Feedback</>
+                )}
+              </button>
+            </form>
+          </div>
+        </section>
 
-              {/* Error state */}
-              {error && (
-                <div className="home-empty-state">
-                  <p className="home-empty-icon">⚠️</p>
-                  <p className="home-empty-text">{error}</p>
-                  <button className="home-empty-retry" onClick={fetchJobs}>Retry</button>
-                </div>
-              )}
-
-              {/* Loading state */}
-              {loading && !error && (
-                <div className="home-feed-grid">
-                  {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
-                </div>
-              )}
-
-              {/* Empty state */}
-              {!loading && !error && jobs.length === 0 && (
-                <div className="home-empty-state">
-                  <p className="home-empty-icon">🔍</p>
-                  <p className="home-empty-text">No jobs match your criteria</p>
-                  <p className="home-empty-sub">Try adjusting your search or filters</p>
-                </div>
-              )}
-
-              {/* Job cards */}
-              {!loading && !error && jobs.length > 0 && (
-                <div className="home-feed-grid">
-                  {jobs.map((job) => (
-                    <JobCard key={job._id} job={job} />
-                  ))}
-                </div>
-              )}
+        {/* ═══════════════════════════════════════
+            CTA FOOTER BANNER
+           ═══════════════════════════════════════ */}
+        <section className="landing-cta-section">
+          <div className="section-container landing-cta-inner">
+            <h2 className="landing-cta-title">Ready to find your next opportunity?</h2>
+            <p className="landing-cta-sub">Join 10,000+ professionals using RecruitAI to land their dream roles.</p>
+            <div className="landing-hero-ctas">
+              <Link to="/jobs" className="landing-btn landing-btn--white">
+                <Briefcase className="w-5 h-5" /> Browse Jobs
+              </Link>
+              <Link to="/register" className="landing-btn landing-btn--outline-white">
+                Create Free Account <ArrowRight className="w-5 h-5" />
+              </Link>
             </div>
           </div>
         </section>
