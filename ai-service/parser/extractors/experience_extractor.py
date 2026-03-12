@@ -10,39 +10,51 @@ def extract_experience(text):
     entries = []
     durations = _extract_durations(text)
     lines = text.split("\n")
+    current_entry = None
 
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-
-        if not line:
-            i += 1
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
             continue
 
         # Check if this line contains a job title keyword
-        if _is_job_title_line(line):
-            # Extract and strip inline duration from the title
-            clean_title, inline_duration = _strip_inline_duration(line)
-            entry = {"title": clean_title}
-
-            # Look at nearby lines for company and duration
+        if _is_job_title_line(stripped):
+            # Save the previous entry if it exists
+            if current_entry and current_entry.get("title"):
+                entries.append(current_entry)
+            
+            clean_title, inline_duration = _strip_inline_duration(stripped)
+            current_entry = {"title": clean_title, "description": ""}
+            
+            # Context around the title
             context = _get_context(lines, i, window=3)
 
-            # Try to find company name (usually line before or after title)
             company = _extract_company(lines, i)
             if company:
-                entry["company"] = company
+                current_entry["company"] = company
 
-            # Try to find duration in nearby lines, or use inline
             duration = _find_nearby_duration(context)
             if duration:
-                entry["duration"] = duration
+                current_entry["duration"] = duration
             elif inline_duration:
-                entry["duration"] = inline_duration
+                current_entry["duration"] = inline_duration
 
-            entries.append(entry)
+        elif current_entry is not None:
+            # Check if line is just a company name or duration that we missed
+            if not current_entry.get("company") and len(stripped) < 50 and not _is_duration_line(stripped) and not stripped.startswith("-") and not stripped.startswith("•"):
+                current_entry["company"] = stripped
+            elif not current_entry.get("duration") and _is_duration_line(stripped):
+                current_entry["duration"] = stripped
+            else:
+                # Part of description
+                if current_entry["description"]:
+                    current_entry["description"] += "\n" + stripped
+                else:
+                    current_entry["description"] = stripped
 
-        i += 1
+    # Save the last entry
+    if current_entry and current_entry.get("title"):
+        entries.append(current_entry)
 
     return {
         "entries": entries,

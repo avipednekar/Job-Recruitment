@@ -12,15 +12,23 @@ export const uploadResume = async (req, res) => {
       return res.status(400).json({ error: "No resume file uploaded" });
     }
 
+    const fileBuffer = fs.readFileSync(req.file.path);
     const form = new FormData();
-    form.append("file", fs.createReadStream(req.file.path));
+    form.append("file", fileBuffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype,
+    });
 
     const parseRes = await axios.post(`${AI_SERVICE_URL}/parse`, form, {
       headers: { ...form.getHeaders() },
     });
 
     const parsedData = parseRes.data.data;
-    fs.unlinkSync(req.file.path);
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (e) {
+      console.warn("Could not delete temp file:", e.message);
+    }
 
     const skillsObj = parsedData.skills || {};
     const skillsList = skillsObj.skills || [];
@@ -32,13 +40,24 @@ export const uploadResume = async (req, res) => {
     });
     const embedding = embedRes.data.embedding;
 
-    const candidate = new Candidate({
-      ...parsedData,
-      embedding,
-      user: req.user?.id,
-    });
-
-    await candidate.save();
+    let candidate;
+    if (req.user?.id) {
+      candidate = await Candidate.findOneAndUpdate(
+        { user: req.user.id },
+        {
+          ...parsedData,
+          embedding,
+          user: req.user.id,
+        },
+        { new: true, upsert: true }
+      );
+    } else {
+      candidate = new Candidate({
+        ...parsedData,
+        embedding,
+      });
+      await candidate.save();
+    }
 
     res.status(201).json({
       success: true,
@@ -47,7 +66,9 @@ export const uploadResume = async (req, res) => {
     });
   } catch (error) {
     if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
     }
     console.error("Upload Error:", error.message);
     res.status(500).json({ error: "Failed to process resume" });

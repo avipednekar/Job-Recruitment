@@ -37,18 +37,30 @@ def parse_resume(file_path: str) -> dict:
             "github": extract_github(cleaned_text),
         },
         "skills": extract_skills(sections.get("skills", cleaned_text)),
-        "education": extract_education(sections.get("education", cleaned_text)),
-        "experience": extract_experience(sections.get("experience", cleaned_text)),
     }
+
+    edu_data = extract_education(sections.get("education", cleaned_text))
+    parsed_data["education"] = edu_data.get("entries", [])
+
+    # Extract Experience (with fallback if regex fails but section was found)
+    exp_text = sections.get("experience", cleaned_text)
+    exp_data = extract_experience(exp_text)
+    if not exp_data.get("entries") and "experience" in sections:
+        exp_entries = [{"title": "Experience Overview", "company": "Various", "description": sections["experience"][:2000]}]
+    else:
+        exp_entries = exp_data.get("entries", [])
+    
+    parsed_data["experience"] = exp_entries
 
     # Optional sections
     if "summary" in sections:
         parsed_data["summary"] = sections["summary"]
 
     if "projects" in sections:
-        parsed_data["projects"] = extract_projects(sections["projects"])
-
-    if "certifications" in sections:
+        proj_data = extract_projects(sections["projects"])
+        if not proj_data and sections["projects"].strip():
+            proj_data = [{"name": "Projects Portfolio", "description": sections["projects"][:2000]}]
+        parsed_data["projects"] = proj_data
         raw_certs = sections["certifications"]
         certs = [
             line.strip() for line in raw_certs.split("\n")
@@ -58,10 +70,16 @@ def parse_resume(file_path: str) -> dict:
         if certs:
             parsed_data["certifications"] = certs
 
-    if "languages" in sections:
-        parsed_data["languages"] = sections["languages"]
-
-    parsed_data["_detected_sections"] = list(sections.keys())
+    if "categories" in sections:
+        parsed_data["categories"] = sections["categories"]
+        
+    # ------------- DEBUG DUMP -------------
+    try:
+        with open("debug_parsed_data.json", "w") as f:
+            json.dump(parsed_data, f, indent=2)
+    except Exception as e:
+        print(f"Debug dump failed: {e}")
+    # --------------------------------------
 
     return parsed_data
 
