@@ -6,6 +6,7 @@ const candidateSchema = new mongoose.Schema(
       name: { type: String, default: "Unknown" },
       email: { type: String, default: "" },
       phone: { type: String, default: "" },
+      location: { type: String, default: "" },
       github: { type: String, default: "" },
       linkedin: { type: String, default: "" },
       summary: { type: String, default: "" },

@@ -191,8 +191,8 @@ const ResumeParser = () => {
                       <Badge tone="brand">{skills.length} detected</Badge>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {skills.map((skill) => (
-                        <Badge key={skill} tone="neutral">
+                      {skills.map((skill, index) => (
+                        <Badge key={`${skill}-${index}`} tone="neutral">
                           {skill}
                         </Badge>
                       ))}

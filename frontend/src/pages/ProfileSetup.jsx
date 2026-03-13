@@ -101,9 +101,9 @@ const SkillInput = ({ skills, setSkills }) => {
             </div>
             {skills.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                    {skills.map((skill) => (
+                    {skills.map((skill, index) => (
                         <span
-                            key={skill}
+                            key={`${skill}-${index}`}
                             className="inline-flex items-center gap-1 badge badge-brand cursor-pointer hover:opacity-80"
                             onClick={() => removeSkill(skill)}
                         >
@@ -141,6 +141,7 @@ const ProfileSetup = () => {
         name: user?.name || "",
         email: user?.email || "",
         phone: "",
+        location: "",
         github: "",
         linkedin: "",
         summary: "",
@@ -193,6 +194,7 @@ const ProfileSetup = () => {
                     name: data.personal_info.name || user?.name || "",
                     email: data.personal_info.email || user?.email || "",
                     phone: data.personal_info.phone || "",
+                    location: data.personal_info.location || "",
                     github: data.personal_info.github || "",
                     linkedin: data.personal_info.linkedin || "",
                     summary: data.personal_info.summary || "",
@@ -660,6 +662,18 @@ const ProfileSetup = () => {
                                             placeholder="+91 98765 43210"
                                         />
                                         <InputField
+                                            id="pi-location"
+                                            label="Location"
+                                            value={personalInfo.location}
+                                            onChange={(e) =>
+                                                setPersonalInfo((p) => ({
+                                                    ...p,
+                                                    location: e.target.value,
+                                                }))
+                                            }
+                                            placeholder="Bengaluru, India"
+                                        />
+                                        <InputField
                                             id="pi-linkedin"
                                             label="LinkedIn"
                                             value={personalInfo.linkedin}
@@ -874,8 +888,8 @@ const ProfileSetup = () => {
                                             Skills
                                         </span>
                                         <div className="flex flex-wrap gap-1.5 mt-2">
-                                            {skills.map((s) => (
-                                                <Badge key={s} tone="brand">
+                                            {skills.map((s, index) => (
+                                                <Badge key={`${s}-${index}`} tone="brand">
                                                     {s}
                                                 </Badge>
                                             ))}

@@ -5,10 +5,11 @@ Pure AI endpoints for the Smart Recruitment Platform.
 No database access — all DB operations go through the Node.js backend.
 
 Endpoints:
-    GET  /        Health check
-    POST /parse   Parse resume PDF/DOCX → structured JSON
-    POST /embed   Generate 384-dim semantic embedding from text
-    POST /match   Match candidate to job → 7-factor AI score
+    GET  /                Health check
+    POST /parse           Parse resume PDF/DOCX → structured JSON
+    POST /embed           Generate 384-dim semantic embedding from text
+    POST /match           Match candidate to job → 7-factor AI score
+    POST /recommend_jobs  Rank all jobs for a specific candidate
 """
 import os
 import uuid
@@ -101,6 +102,25 @@ def match_candidate():
     try:
         match_result = match_candidate_to_job(data["candidate_data"], data["job"])
         return jsonify({"success": True, "match_result": match_result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────
+# 4. Recommend Jobs for Candidate
+# ─────────────────────────────────────────────
+@app.route("/recommend_jobs", methods=["POST"])
+def recommend_jobs():
+    """Takes candidate data + list of jobs, returns ranked list of jobs."""
+    from matching.recommend import recommend_jobs_for_candidate
+
+    data = request.json
+    if not data or "candidate_data" not in data or "jobs_list" not in data:
+        return jsonify({"error": "Missing required fields: candidate_data, jobs_list"}), 400
+
+    try:
+        ranked_jobs = recommend_jobs_for_candidate(data["candidate_data"], data["jobs_list"])
+        return jsonify({"success": True, "ranked_jobs": ranked_jobs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

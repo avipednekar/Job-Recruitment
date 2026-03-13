@@ -3,7 +3,7 @@
     "name": "AVINASH MANOHAR PEDNEKAR",
     "email": "avinashpednekar431@gmail.com",
     "phone": "+917387838951",
-    "linkedin": null,
+    "linkedin": "https://www.linkedin.com/in/avinash-pednekar",
     "github": null
   },
   "skills": {
@@ -26,32 +26,35 @@
   },
   "education": [
     {
-      "degree": "bachelor",
-      "details": "Bachelor's in Computer Science and Engineering",
+      "degree": "b.tech",
+      "details": "B.Tech Computer Science and Engineering",
       "institution": "Kolhapur Institute of Technology",
+      "gpa": "GPA: 8.5",
       "year": "2023 - 2027"
     }
   ],
   "experience": [
     {
       "title": "Front End Developer",
-      "company": "5TechG LLP"
+      "description": "5TechG LLP | Remote\nDeveloped modern Admin panel with dashboard and learnt React, Tailwind CSS. Also done other many\nprojects.",
+      "company": "5TechG LLP | Remote",
+      "duration": "Jun 2025 - Oct 2025"
     }
   ],
-  "summary": "Results-oriented Web Developer skilled in JavaScript, React, and\nmodern web technologies. Combines proficiency in ethical hacking,\nnetwork security, and programming languages including C++, Python,\nand Node.js to deliver secure, efficient web solutions. Experienced in UI\ndesign and committed to meeting project deadlines, demonstrated\nthrough successful web development internships and impactful full-\nstack projects.",
   "projects": [
     {
       "name": "Training and Placement",
-      "duration": "01/2025 - 05/2025",
+      "duration": "Jan 2025 - May 2025",
       "description": "A web-based application designed for the effective management of training and placement activities Developed a web-based application for the management of training and placement activities within educational institutions. Provided tools for profile management, job postings, applications, and result tracking"
     },
     {
       "name": "Marksheet Ledger",
-      "duration": "07/2025 - 11/2025",
+      "duration": "Jul 2025 - Nov 2025",
       "description": "An advanced web application for managing student academic records Developed a full-stack project featuring a modern React frontend and Node.js backend. Focused on smart, automated workflows for managing student academic records"
     }
   ],
   "certifications": [
+    "Ethical Hacking",
     "Internship Studio"
   ]
 }

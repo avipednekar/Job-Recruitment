@@ -18,15 +18,30 @@ const Button = ({
   variant = "primary",
   size = "md",
   type = "button",
+  isLoading = false,
+  disabled = false,
   ...props
 }) => {
   return (
     <button
       type={type}
-      className={cn(variants[variant], sizes[size], className)}
+      className={cn(
+        variants[variant],
+        sizes[size],
+        "disabled:cursor-not-allowed disabled:opacity-60",
+        className
+      )}
+      disabled={disabled || isLoading}
       {...props}
     >
-      {children}
+      {isLoading ? (
+        <>
+          <span className="size-4 rounded-full border-2 border-current/30 border-t-current animate-spin" />
+          <span>{children}</span>
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 };

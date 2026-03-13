@@ -285,3 +285,107 @@ export const getMyJobs = async (req, res) => {
   }
 };
 
+/* ──────────────────────────────────────────────
+   GET /api/jobs/recommendations — Hybrid Recommend Engine
+   ────────────────────────────────────────────── */
+export const getJobRecommendations = async (req, res) => {
+  try {
+    console.log("[Job Recs] Fetching profile for user:", req.user?.id);
+    
+    // 1. Fetch user's candidate profile (if job_seeker)
+    const Candidate = (await import("../models/Candidate.js")).default;
+    const candidate = await Candidate.findOne({ user: req.user.id }).lean();
+
+    if (!candidate) {
+      return res.status(404).json({ error: "Candidate profile not found. Please upload a resume first." });
+    }
+
+    // 2. Fetch all active internal jobs
+    const internalJobs = await Job.find({ status: "active" }).lean();
+    let rankedInternal = [];
+
+    console.log(`[Job Recs] Found ${internalJobs.length} active internal jobs. Requesting AI ranking...`);
+
+    // 3. Ask Python AI to rank internal jobs
+    if (internalJobs.length > 0) {
+      try {
+        const aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
+          candidate_data: candidate,
+          jobs_list: internalJobs,
+        });
+        
+        // Map the scored IDs back to the full job objects
+        if (aiResponse.data.success && aiResponse.data.ranked_jobs) {
+          rankedInternal = aiResponse.data.ranked_jobs.map(ranked => {
+            const fullJob = internalJobs.find(j => j._id.toString() === ranked.job_id);
+            return {
+              ...fullJob,
+              match_metrics: ranked
+            };
+          });
+        }
+      } catch (err) {
+        console.error("AI Recommendation Error:", err.message);
+        // Fallback: just return latest jobs if AI fails
+        rankedInternal = internalJobs.sort((a, b) => b.createdAt - a.createdAt);
+      }
+    }
+
+    // 4. Fetch External Jobs (JSearch API)
+    let externalJobs = [];
+    try {
+      // Build dynamic query: "[Latest Job Title] [Top Skill] in [Location]"
+      let queryParts = [];
+      if (candidate.experience && candidate.experience.length > 0) {
+        queryParts.push(candidate.experience[0].title);
+      }
+      if (candidate.skills && candidate.skills.skills && candidate.skills.skills.length > 0) {
+        queryParts.push(candidate.skills.skills[0]); 
+      }
+      
+      const location = candidate.personal_info?.location || "";
+      const query = queryParts.join(" ") + (location ? ` in ${location}` : "");
+      
+      if (query.trim() && process.env.RAPIDAPI_KEY) {
+        const externalResponse = await axios.get("https://jsearch.p.rapidapi.com/search", {
+          params: { query: query, num_pages: 1 },
+          headers: {
+            "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+            "x-rapidapi-host": "jsearch.p.rapidapi.com"
+          }
+        });
+        externalJobs = externalResponse.data.data.map(job => ({
+          _id: job.job_id,
+          id: job.job_id,
+          title: job.job_title,
+          company: job.employer_name,
+          location: job.job_city ? `${job.job_city}, ${job.job_country}` : "Remote",
+          description: job.job_description?.substring(0, 150) + "...",
+          employment_type: job.job_employment_type?.replace(/_/g, " "),
+          remote: job.job_is_remote,
+          logo: job.employer_logo,
+          apply_link: job.job_apply_link,
+          external_url: job.job_apply_link,
+          postedAt: job.job_posted_at_datetime_utc,
+          source: "external"
+        })) || [];
+      }
+    } catch (err) {
+      console.error("External JSearch Error:", err.message);
+      // Proceed without external jobs if it fails
+    }
+
+    res.json({
+      success: true,
+      internal: rankedInternal.slice(0, 10), // Top 10 internal recommendations
+      external: externalJobs.slice(0, 10)    // Top 10 external recommendations
+    });
+
+  } catch (error) {
+    console.error("=============== CRITICAL ERROR IN JOB RECOMMENDATIONS ===============");
+    console.error("Error Message:", error.message);
+    console.error("Stack Trace:", error.stack);
+    res.status(500).json({ error: "Failed to generate job recommendations", details: error.message });
+  }
+};
+
