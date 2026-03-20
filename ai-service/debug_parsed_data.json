@@ -4,57 +4,54 @@
     "email": "avinashpednekar431@gmail.com",
     "phone": "+917387838951",
     "linkedin": "https://www.linkedin.com/in/avinash-pednekar",
-    "github": null
+    "github": "https://github.com/Avipednekar"
   },
   "skills": {
     "skills": [
       "Express.js",
       "Node.js",
       "React.js",
+      "algorithms",
       "c",
       "c++",
+      "css",
       "data structures",
+      "git",
+      "github",
       "java",
       "javascript",
       "mongodb",
+      "mysql",
       "oop",
+      "postman",
       "python",
-      "sql"
+      "restful",
+      "tailwind"
     ],
-    "count": 12,
+    "count": 19,
     "confidence_score": 100
   },
   "education": [
     {
       "degree": "b.tech",
-      "details": "B.Tech Computer Science and Engineering",
+      "details": "B.Tech in Computer Science and Engineering",
       "institution": "Kolhapur Institute of Technology",
-      "gpa": "GPA: 8.5",
+      "gpa": "CGPA: 8.5",
       "year": "2023 - 2027"
     }
   ],
   "experience": [
     {
       "title": "Front End Developer",
-      "description": "5TechG LLP | Remote\nDeveloped modern Admin panel with dashboard and learnt React, Tailwind CSS. Also done other many\nprojects.",
+      "description": "5TechG LLP | Remote\nDeveloped a modern, responsive Admin Panel using React.js and Tailwind CSS, supporting 5+ core dashboard modules.\nIntegrated 10+ REST APIs to display real-time data in dashboard widgets, tables, and analytics sections.\nBuilt and reused 20+ modular UI components, improving development efficiency by 30%.\nRefined UI responsiveness and user experience through optimized layouts and interactive elements.\nCollaborated with backend developers to ensure seamless API integration and feature delivery.",
       "company": "5TechG LLP | Remote",
       "duration": "Jun 2025 - Oct 2025"
-    }
-  ],
-  "projects": [
-    {
-      "name": "Training and Placement",
-      "duration": "Jan 2025 - May 2025",
-      "description": "A web-based application designed for the effective management of training and placement activities Developed a web-based application for the management of training and placement activities within educational institutions. Provided tools for profile management, job postings, applications, and result tracking"
     },
     {
-      "name": "Marksheet Ledger",
-      "duration": "Jul 2025 - Nov 2025",
-      "description": "An advanced web application for managing student academic records Developed a full-stack project featuring a modern React frontend and Node.js backend. Focused on smart, automated workflows for managing student academic records"
+      "title": "Technical Projects | Full Stack Development",
+      "description": "Training and Placement System Jan 2025 - May 2025\nA full-stack web application designed to streamline training and placement management for educational institutions.\nDeveloped responsive student and admin portals using React.js, supporting 100+ student profiles.\nDesigned and implemented 15+ RESTful APIs using Node.js and Express.js for job postings, applications, and result tracking.\nImplemented JWT-based authentication and role-based access control for 2 user roles (Admin / Student).\nDesigned MongoDB database schema with 5+ collections for structured data management.\nMarksheet Ledger Jul 2025 - Nov 2025\nAn advanced academic record management system for efficient student performance tracking.\nBuilt a full-stack application using React.js and Node.js handling 200+ academic records.\nDeveloped automated result calculation logic reducing manual errors by 40%.\nApplied CRUD operations across 4+ core modules (Students, Subjects, Marks, Results).\nImproved data retrieval efficiency by optimizing database queries, reducing response time by 20%.",
+      "company": "Training and Placement System Jan 2025 - May 2025",
+      "duration": "Jan 2025 - May 2025"
     }
-  ],
-  "certifications": [
-    "Ethical Hacking",
-    "Internship Studio"
   ]
 }
