@@ -221,7 +221,9 @@ const JOBS = [
 
 async function seed() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI, {
+      dbName: process.env.MONGO_DB_NAME || "ai_recruitment",
+    });
     console.log("✅ Connected to MongoDB");
 
     await Job.deleteMany({});
