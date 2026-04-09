@@ -117,6 +117,35 @@ AI service base URL: `http://localhost:5000`
 - `POST /embed` generate text embeddings
 - `POST /match` compute candidate-job match score
 
+## Glassdoor Dataset Tooling
+
+The AI service now includes offline dataset utilities for collecting and
+normalizing external job descriptions:
+
+- `ai-service/job_data/jd_data_extractor.py` uses Selenium plus BeautifulSoup
+  to extract Glassdoor listing cards and, optionally, detailed job
+  descriptions.
+- `ai-service/job_data/jd_data_cleaner.py` removes null-like values,
+  normalizes text fields, converts salary/rating types, and keeps the scraped
+  records consistent for downstream matching.
+
+Example usage:
+
+```bash
+cd ai-service
+python -m job_data.jd_data_extractor "https://www.glassdoor.com/Job/jobs.htm?sc.keyword=software%20engineer" raw_jobs.json --max-pages 2 --include-details
+python -m job_data.jd_data_cleaner raw_jobs.json cleaned_jobs.json
+```
+
+Notes:
+
+- Selenium 4 uses Selenium Manager, so if Chrome is installed locally it can
+  often resolve the driver automatically.
+- Glassdoor changes markup frequently. The extractor includes multiple fallback
+  selectors, but selector updates may still be needed over time.
+- These tools are currently offline utilities and are not yet wired to a live
+  backend route.
+
 ## Security Notes
 
 - Never commit `.env` files or secret credentials.

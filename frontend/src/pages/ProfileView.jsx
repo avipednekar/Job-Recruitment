@@ -76,7 +76,7 @@ function InfoRow({ icon, label, value, href }) {
             <ExternalLink className="size-3.5" />
           </a>
         ) : (
-          <p className="mt-1 text-sm text-text-primary wrap-break-word">
+          <p className="mt-1 text-sm text-text-primary break-words">
             {value || "Not added yet"}
           </p>
         )}

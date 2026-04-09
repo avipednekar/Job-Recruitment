@@ -345,7 +345,7 @@ export default function Jobs() {
           </button>
 
           <Card className="overflow-hidden">
-            <div className="p-8 sm:p-10 bg-linear-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
+            <div className="p-8 sm:p-10 bg-gradient-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
               <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)] gap-8">
                 <div className="space-y-6">
                   <div>

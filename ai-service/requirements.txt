@@ -6,3 +6,5 @@ numpy
 pymupdf
 python-docx
 pydantic
+beautifulsoup4
+selenium
