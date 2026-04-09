@@ -88,22 +88,6 @@ export const createJobSeekerProfile = async (req, res) => {
       projects,
     });
 
-    let embedding = [];
-    try {
-      const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
-        text: combinedText,
-      });
-      embedding = embedRes.data.embedding;
-    } catch (embedErr) {
-      console.warn(
-        "Embedding generation failed, saving without embedding:",
-        embedErr.message,
-      );
-      // Generate a zero vector so the document can still be saved
-      embedding = new Array(384).fill(0);
-    }
-
-    // Upsert: update if exists, create if not
     let candidate = await Candidate.findOne({ user: user._id });
 
     if (candidate) {
@@ -112,19 +96,26 @@ export const createJobSeekerProfile = async (req, res) => {
       candidate.education = education || candidate.education;
       candidate.experience = experience || candidate.experience;
       candidate.projects = projects || candidate.projects;
-      candidate.embedding = embedding;
+      // Keep existing embedding for now
       await candidate.save();
     } else {
+      let initialEmbedding = new Array(384).fill(0);
       candidate = await Candidate.create({
         personal_info,
         skills,
         education,
         experience,
         projects,
-        embedding,
+        embedding: initialEmbedding,
         user: user._id,
       });
     }
+
+    axios.post(`${AI_SERVICE_URL}/embed`, { text: combinedText })
+      .then(async (embedRes) => {
+        await Candidate.findByIdAndUpdate(candidate._id, { embedding: embedRes.data.embedding });
+      })
+      .catch((err) => console.warn("Background embedding failed:", err.message));
 
     // Update user
     user.profileComplete = true;
@@ -281,17 +272,7 @@ export const updateProfile = async (req, res) => {
 
         const combinedText = buildCandidateEmbeddingText(candidatePayload);
 
-        try {
-          const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
-            text: combinedText,
-          });
-          candidatePayload.embedding = embedRes.data.embedding;
-        } catch (embedErr) {
-          console.warn(
-            "Embedding refresh failed during profile update:",
-            embedErr.message,
-          );
-        }
+        // Remove synchronous embedding update here
 
         const updatedCandidate = await Candidate.findOneAndUpdate(
           { user: user._id },
@@ -313,6 +294,13 @@ export const updateProfile = async (req, res) => {
           },
         );
 
+        
+        axios.post(`${AI_SERVICE_URL}/embed`, { text: combinedText })
+          .then(async (embedRes) => {
+            await Candidate.findByIdAndUpdate(updatedCandidate._id, { embedding: embedRes.data.embedding });
+          })
+          .catch((err) => console.warn("Background embedding failed:", err.message));
+          
         user.profileComplete = true;
         user.candidate = updatedCandidate._id;
         await user.save();

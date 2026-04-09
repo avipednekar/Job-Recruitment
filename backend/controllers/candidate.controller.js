@@ -50,29 +50,30 @@ export const uploadResume = async (req, res) => {
       : "";
     const combinedText = `${summary} ${skillsList.join(" ")} ${experienceText} ${projectText} ${location}`.trim();
 
-    const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
-      text: combinedText,
-    });
-    const embedding = embedRes.data.embedding;
-
     let candidate;
+    const initialEmbedding = new Array(384).fill(0);
     if (req.user?.id) {
       candidate = await Candidate.findOneAndUpdate(
         { user: req.user.id },
         {
-          ...parsedData,
-          embedding,
-          user: req.user.id,
+          $set: { ...parsedData, user: req.user.id },
+          $setOnInsert: { embedding: initialEmbedding }
         },
         { new: true, upsert: true }
       );
     } else {
       candidate = new Candidate({
         ...parsedData,
-        embedding,
+        embedding: initialEmbedding,
       });
       await candidate.save();
     }
+
+    axios.post(`${AI_SERVICE_URL}/embed`, { text: combinedText })
+      .then(async (embedRes) => {
+        await Candidate.findByIdAndUpdate(candidate._id, { embedding: embedRes.data.embedding });
+      })
+      .catch((err) => console.warn("Background embedding failed:", err.message));
 
     res.status(201).json({
       success: true,
@@ -140,3 +141,4 @@ export const rankCandidates = async (req, res) => {
     res.status(500).json({ error: "Failed to rank candidates" });
   }
 };
+

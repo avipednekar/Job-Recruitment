@@ -642,15 +642,7 @@ export const createJob = async (req, res) => {
     }
 
     // Generate embedding via AI service (best-effort; continue without if unavailable)
-    let embedding = [];
-    try {
-      const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
-        text: `${title} ${description}`,
-      });
-      embedding = embedRes.data.embedding;
-    } catch {
-      console.warn("AI service unavailable — saving job without embedding");
-    }
+    const embedding = new Array(384).fill(0);
 
     const job = new Job({
       title,
@@ -672,6 +664,12 @@ export const createJob = async (req, res) => {
     });
 
     await job.save();
+
+    axios.post(`${AI_SERVICE_URL}/embed`, { text: `${title} ${description}` })
+      .then(async (embedRes) => {
+         await Job.findByIdAndUpdate(job._id, { embedding: embedRes.data.embedding });
+      })
+      .catch(() => console.warn("Background embedding failed"));
 
     res.status(201).json({ success: true, job });
   } catch (error) {
@@ -730,19 +728,18 @@ export const updateJob = async (req, res) => {
     if (logoColor !== undefined) job.logoColor = logoColor;
     if (status !== undefined) job.status = status;
 
-    // Recalculate embeddings only if title or description changed
-    if (title || description) {
-      try {
-        const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
-          text: `${job.title} ${job.description}`,
-        });
-        job.embedding = embedRes.data.embedding;
-      } catch {
-        console.warn("AI service unavailable — updating job without new embedding");
-      }
-    }
+    const shouldUpdateEmbedding = title || description;
 
     await job.save();
+
+    if (shouldUpdateEmbedding) {
+      axios.post(`${AI_SERVICE_URL}/embed`, { text: `${job.title} ${job.description}` })
+        .then(async (embedRes) => {
+           await Job.findByIdAndUpdate(job._id, { embedding: embedRes.data.embedding });
+        })
+        .catch(() => console.warn("Background embedding failed"));
+    }
+
     res.json({ success: true, job });
   } catch (error) {
     console.error("Job Update Error:", error.message);

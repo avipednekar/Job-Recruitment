@@ -44,3 +44,5 @@ ai-service/uploads/
 /Kaggle Resumes/
 /Smart AI Recruitment Platform.txt
 /test_node_api.py
+fix_job.py
+fix_profile.py
