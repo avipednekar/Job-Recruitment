@@ -326,7 +326,7 @@ export default function ProfileView() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [recommendations, setRecommendations] = useState({ internal: [], external: [] });
+  const [recommendations, setRecommendations] = useState([]);
   const [recsLoading, setRecsLoading] = useState(false);
 
   const isJobSeeker = user?.role === "job_seeker";
@@ -356,10 +356,7 @@ export default function ProfileView() {
     try {
       setRecsLoading(true);
       const res = await getJobRecommendations();
-      setRecommendations({
-        internal: res.data?.internal || [],
-        external: res.data?.external || [],
-      });
+      setRecommendations(res.data?.external || []);
     } catch (error) {
       console.error("Failed to fetch profile recommendations:", error);
     } finally {
@@ -731,8 +728,8 @@ export default function ProfileView() {
               </p>
 
               <div className="mt-5 space-y-4">
-                {[...recommendations.internal.slice(0, 2), ...recommendations.external.slice(0, 1)].length ? (
-                  [...recommendations.internal.slice(0, 2), ...recommendations.external.slice(0, 1)].map((job, index) => (
+                {recommendations.length ? (
+                  recommendations.slice(0, 3).map((job, index) => (
                     <MiniJobCard key={getJobKey(job, index, "profile-rec")} job={job} index={index} />
                   ))
                 ) : (

@@ -8,6 +8,20 @@ EMAIL_REGEX = r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
 PHONE_REGEX = r"(\+?\d{1,3}[\s\-.]?)?\(?\d{2,5}\)?[\s\-.]?\d{3,5}[\s\-.]?\d{3,5}"
 LINKEDIN_REGEX = r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w\-]+"
 GITHUB_REGEX = r"(?:https?://)?(?:www\.)?github\.com/[\w\-]+"
+LOCATION_LABEL_REGEX = r"(?i)(?:current\s+location|preferred\s+location|location|address|based\s+in)\s*[:\-]\s*([^\n|]+)"
+
+INDIA_LOCATION_KEYWORDS = {
+    "india", "mumbai", "pune", "bangalore", "bengaluru", "hyderabad", "chennai",
+    "delhi", "new delhi", "noida", "gurugram", "gurgaon", "kolkata", "ahmedabad",
+    "surat", "jaipur", "lucknow", "kanpur", "nagpur", "indore", "thane", "bhopal",
+    "visakhapatnam", "patna", "vadodara", "ludhiana", "agra", "nashik", "faridabad",
+    "meerut", "rajkot", "varanasi", "srinagar", "aurangabad", "dhanbad", "amritsar",
+    "navi mumbai", "allahabad", "prayagraj", "ranchi", "howrah", "coimbatore",
+    "jabalpur", "gwalior", "vijayawada", "jodhpur", "madurai", "raipur", "kochi",
+    "cochin", "chandigarh", "trivandrum", "thiruvananthapuram", "goa", "kolhapur",
+    "maharashtra", "karnataka", "telangana", "tamil nadu", "kerala", "gujarat",
+    "rajasthan", "uttar pradesh", "madhya pradesh", "west bengal",
+}
 
 
 def _get_nlp():
@@ -116,3 +130,62 @@ def extract_linkedin(text):
 def extract_github(text):
     match = re.search(GITHUB_REGEX, text, re.IGNORECASE)
     return match.group(0) if match else None
+
+
+def _clean_location_text(value):
+    if not value:
+        return None
+
+    cleaned = re.sub(r"\s+", " ", str(value)).strip(" ,|-")
+    if not cleaned:
+        return None
+
+    lowered = cleaned.lower()
+    if any(token in lowered for token in ["@", "http", "www", "linkedin", "github"]):
+        return None
+
+    digit_count = sum(char.isdigit() for char in cleaned)
+    if digit_count > 3:
+        return None
+
+    return cleaned
+
+
+def _looks_like_location(value):
+    cleaned = _clean_location_text(value)
+    if not cleaned:
+        return False
+
+    lowered = cleaned.lower()
+    if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS):
+        return True
+
+    if "," in cleaned and len(cleaned.split()) <= 6:
+        return True
+
+    return False
+
+
+def extract_location(text):
+    """
+    Extract candidate location from the top portion of the resume.
+    Prefers explicit labels such as "Location: Pune, India", then falls back
+    to short top-of-resume lines that look like Indian city/state strings.
+    """
+    first_lines = [line.strip() for line in text.split("\n")[:20] if line.strip()]
+    top_text = "\n".join(first_lines)
+
+    label_match = re.search(LOCATION_LABEL_REGEX, top_text)
+    if label_match:
+        labeled_location = _clean_location_text(label_match.group(1))
+        if _looks_like_location(labeled_location):
+            return labeled_location
+
+    for line in first_lines:
+        if any(skip in line.lower() for skip in ["email", "phone", "linkedin", "github", "portfolio"]):
+            continue
+
+        if _looks_like_location(line):
+            return _clean_location_text(line)
+
+    return None

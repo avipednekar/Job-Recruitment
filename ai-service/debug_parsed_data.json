@@ -1,57 +1,43 @@
 {
   "personal_info": {
-    "name": "AVINASH MANOHAR PEDNEKAR",
-    "email": "avinashpednekar431@gmail.com",
-    "phone": "+917387838951",
-    "linkedin": "https://www.linkedin.com/in/avinash-pednekar",
-    "github": "https://github.com/Avipednekar"
+    "name": "Abhijeet R Nimbalkar",
+    "email": "abhijeetnimbalkar99@gmail.com",
+    "phone": "7823890220",
+    "location": "K.I.T. College of Engineering, Kolhapur",
+    "linkedin": null,
+    "github": null
   },
   "skills": {
     "skills": [
-      "Express.js",
-      "Node.js",
-      "React.js",
-      "algorithms",
       "c",
       "c++",
       "css",
       "data structures",
-      "git",
-      "github",
+      "html",
       "java",
       "javascript",
-      "mongodb",
-      "mysql",
-      "oop",
-      "postman",
-      "python",
-      "restful",
-      "tailwind"
+      "oop"
     ],
-    "count": 19,
-    "confidence_score": 100
+    "count": 8,
+    "confidence_score": 100.0
   },
   "education": [
     {
       "degree": "b.tech",
-      "details": "B.Tech in Computer Science and Engineering",
-      "institution": "Kolhapur Institute of Technology",
-      "gpa": "CGPA: 8.5",
-      "year": "2023 - 2027"
+      "details": "Bachelor of Technology (B.Tech) in Computer Science and Engineering",
+      "institution": "K.I.T. College of Engineering, Kolhapur"
     }
   ],
-  "experience": [
+  "experience": [],
+  "summary": "Passionate about learning new technologies and solving real-world problems through code. Currently\nexploring opportunities to enhance my skills and contribute effectively in a team-oriented\nenvironment.",
+  "projects": [
     {
-      "title": "Front End Developer",
-      "description": "5TechG LLP | Remote\nDeveloped a modern, responsive Admin Panel using React.js and Tailwind CSS, supporting 5+ core dashboard modules.\nIntegrated 10+ REST APIs to display real-time data in dashboard widgets, tables, and analytics sections.\nBuilt and reused 20+ modular UI components, improving development efficiency by 30%.\nRefined UI responsiveness and user experience through optimized layouts and interactive elements.\nCollaborated with backend developers to ensure seamless API integration and feature delivery.",
-      "company": "5TechG LLP | Remote",
-      "duration": "Jun 2025 - Oct 2025"
-    },
-    {
-      "title": "Technical Projects | Full Stack Development",
-      "description": "Training and Placement System Jan 2025 - May 2025\nA full-stack web application designed to streamline training and placement management for educational institutions.\nDeveloped responsive student and admin portals using React.js, supporting 100+ student profiles.\nDesigned and implemented 15+ RESTful APIs using Node.js and Express.js for job postings, applications, and result tracking.\nImplemented JWT-based authentication and role-based access control for 2 user roles (Admin / Student).\nDesigned MongoDB database schema with 5+ collections for structured data management.\nMarksheet Ledger Jul 2025 - Nov 2025\nAn advanced academic record management system for efficient student performance tracking.\nBuilt a full-stack application using React.js and Node.js handling 200+ academic records.\nDeveloped automated result calculation logic reducing manual errors by 40%.\nApplied CRUD operations across 4+ core modules (Students, Subjects, Marks, Results).\nImproved data retrieval efficiency by optimizing database queries, reducing response time by 20%.",
-      "company": "Training and Placement System Jan 2025 - May 2025",
-      "duration": "Jan 2025 - May 2025"
+      "name": "Training and Placement Website",
+      "description": "Developed a web-based platform to streamline training and placement processes in college. Enabled student registration, company listings, and admin-level placement record management. Technologies Used: HTML, CSS, JavaScript, MongoDB"
     }
+  ],
+  "certifications": [
+    "Fundamentals of Object-Oriented Programming in Java",
+    "NPTEL, 2025 - Scored 90%"
   ]
 }

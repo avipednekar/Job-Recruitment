@@ -56,10 +56,26 @@ export const createJobSeekerProfile = async (req, res) => {
 
     const { personal_info, skills, education, experience, projects } = req.body;
 
-    // Build embedding from summary + skills
+    // Build embedding from summary + skills + experience + projects + location
     const skillsList = skills?.skills || [];
     const summary = personal_info?.summary || "";
-    const combinedText = `${summary} ${skillsList.join(" ")}`;
+    const location = personal_info?.location || "";
+    const experienceText = Array.isArray(experience)
+      ? experience
+          .map((entry) =>
+            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
+          )
+          .join(" ")
+      : "";
+    const projectText = Array.isArray(projects)
+      ? projects
+          .map((entry) =>
+            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
+          )
+          .join(" ")
+      : "";
+    const combinedText =
+      `${summary} ${skillsList.join(" ")} ${experienceText} ${projectText} ${location}`.trim();
 
     let embedding = [];
     try {

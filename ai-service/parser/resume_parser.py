@@ -10,7 +10,7 @@ from parser.section_splitter import split_sections
 from parser.skill_matcher import extract_skills
 from parser.extractors import (
     extract_name, extract_email, extract_phone,
-    extract_linkedin, extract_github,
+    extract_linkedin, extract_github, extract_location,
     extract_experience, extract_education, extract_projects,
 )
 
@@ -33,6 +33,7 @@ def parse_resume(file_path: str) -> dict:
             "name": extract_name(cleaned_text),
             "email": extract_email(cleaned_text),
             "phone": extract_phone(cleaned_text),
+            "location": extract_location(cleaned_text),
             "linkedin": extract_linkedin(cleaned_text),
             "github": extract_github(cleaned_text),
         },

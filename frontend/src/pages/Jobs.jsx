@@ -19,8 +19,8 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../context/useAuth";
 import {
   fetchExternalJobs,
+  getProfile,
   getJobRecommendations,
-  searchJobs,
 } from "../services/api";
 import {
   getExternalApplyUrl,
@@ -200,16 +200,15 @@ export default function Jobs() {
   const [salaryMin, setSalaryMin] = useState(0);
   const [remoteOnly, setRemoteOnly] = useState(false);
 
-  const [jobs, setJobs] = useState([]);
   const [externalJobs, setExternalJobs] = useState([]);
-  const [totalJobs, setTotalJobs] = useState(0);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState("");
 
-  const [recommendations, setRecommendations] = useState({ internal: [], external: [] });
+  const [recommendations, setRecommendations] = useState([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [recError, setRecError] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [preferredLocationLoaded, setPreferredLocationLoaded] = useState(false);
 
   const searchParams = useMemo(() => {
     const params = {};
@@ -231,22 +230,15 @@ export default function Jobs() {
       setLoadingJobs(true);
       setJobsError("");
 
-      const [internalRes, externalRes] = await Promise.all([
-        searchJobs(searchParams),
-        fetchExternalJobs({
-          q: searchParams.q || "software engineer",
-          location: searchParams.location || "",
-        }),
-      ]);
+      const externalRes = await fetchExternalJobs({
+        q: searchParams.q || "software engineer",
+        location: searchParams.location || "",
+      });
 
-      setJobs(internalRes.data.jobs || []);
-      setTotalJobs(internalRes.data.totalJobs || 0);
       setExternalJobs(externalRes.data.jobs || []);
     } catch (error) {
       console.error("Failed to load jobs:", error);
-      setJobs([]);
       setExternalJobs([]);
-      setTotalJobs(0);
       setJobsError("We couldn't load jobs right now. Please try again.");
     } finally {
       setLoadingJobs(false);
@@ -255,7 +247,7 @@ export default function Jobs() {
 
   const loadRecommendations = useCallback(async () => {
     if (user?.role !== "job_seeker") {
-      setRecommendations({ internal: [], external: [] });
+      setRecommendations([]);
       return;
     }
 
@@ -263,14 +255,11 @@ export default function Jobs() {
       setLoadingRecs(true);
       setRecError("");
       const res = await getJobRecommendations();
-      setRecommendations({
-        internal: res.data?.internal || [],
-        external: res.data?.external || [],
-      });
+      setRecommendations(res.data?.external || []);
       setLastRefresh(new Date());
     } catch (error) {
       console.error("Failed to load recommendations:", error);
-      setRecommendations({ internal: [], external: [] });
+      setRecommendations([]);
       setRecError(
         error.response?.data?.error || "Recommendations are unavailable until your profile and AI service are ready."
       );
@@ -278,6 +267,36 @@ export default function Jobs() {
       setLoadingRecs(false);
     }
   }, [user?.role]);
+
+  useEffect(() => {
+    if (preferredLocationLoaded || user?.role !== "job_seeker") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPreferredLocation = async () => {
+      try {
+        const res = await getProfile();
+        const preferredLocation = res.data?.profile?.personal_info?.location?.trim() || "";
+        if (!cancelled && preferredLocation && !location.trim()) {
+          setLocation(preferredLocation);
+        }
+      } catch (error) {
+        console.error("Failed to prefill preferred location:", error);
+      } finally {
+        if (!cancelled) {
+          setPreferredLocationLoaded(true);
+        }
+      }
+    };
+
+    loadPreferredLocation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location, preferredLocationLoaded, user?.role]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -326,7 +345,7 @@ export default function Jobs() {
                       Find roles that actually fit your profile
                     </h1>
                     <p className="mt-3 max-w-2xl text-text-secondary text-lg leading-7">
-                      Search platform jobs, browse external openings, and refresh personalized matches whenever your profile changes.
+                      Browse backend-served job results and refresh personalized matches whenever your profile changes.
                     </p>
                   </div>
 
@@ -358,16 +377,12 @@ export default function Jobs() {
                 </div>
 
                 <Card className="p-6 bg-white/90">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-4">
                     <div className="rounded-2xl bg-surface-2 p-4">
-                      <p className="text-sm text-text-secondary">Platform jobs</p>
-                      <p className="mt-2 text-3xl font-semibold text-text-primary">{totalJobs}</p>
-                    </div>
-                    <div className="rounded-2xl bg-surface-2 p-4">
-                      <p className="text-sm text-text-secondary">External matches</p>
+                      <p className="text-sm text-text-secondary">Jobs loaded</p>
                       <p className="mt-2 text-3xl font-semibold text-text-primary">{externalJobs.length}</p>
                     </div>
-                    <div className="col-span-2 rounded-2xl border border-dashed border-border p-4">
+                    <div className="rounded-2xl border border-dashed border-border p-4">
                       <p className="text-sm text-text-secondary">
                         Recommendation refresh
                       </p>
@@ -387,7 +402,7 @@ export default function Jobs() {
             <Card className="p-6 sm:p-8">
               <SectionHeader
                 title="Recommended for you"
-                description="Fresh matches based on your saved profile, parsed resume content, and current job inventory."
+                description="Fresh matches based on your saved profile, parsed resume content, and backend-served job sources."
                 action={
                   <Button
                     variant="secondary"
@@ -414,7 +429,7 @@ export default function Jobs() {
                 </div>
               ) : null}
 
-              {!loadingRecs && !recError && !recommendations.internal.length && !recommendations.external.length ? (
+              {!loadingRecs && !recError && !recommendations.length ? (
                 <div className="mt-6">
                   <EmptyState
                     title="No recommendations yet"
@@ -424,29 +439,15 @@ export default function Jobs() {
                 </div>
               ) : null}
 
-              {recommendations.internal.length ? (
+              {recommendations.length ? (
                 <div className="mt-8 space-y-4">
                   <SectionHeader
-                    title="Best platform matches"
-                    description="Ranked using your profile summary, skills, projects, experience, location, education, and salary signals."
+                    title="Recommended matches"
+                    description="Job openings matched from backend-served sources using your top profile signals."
                   />
                   <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {recommendations.internal.slice(0, 3).map((job, index) => (
-                      <JobCard key={getJobKey(job, index, "rec-int")} job={job} recommendation />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {recommendations.external.length ? (
-                <div className="mt-8 space-y-4">
-                  <SectionHeader
-                    title="Matches from the web"
-                    description="External openings matched from public job sources using your top profile signals."
-                  />
-                  <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {recommendations.external.slice(0, 3).map((job, index) => (
-                      <JobCard key={getJobKey(job, index, "rec-ext")} job={job} recommendation />
+                    {recommendations.slice(0, 3).map((job, index) => (
+                      <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
                     ))}
                   </div>
                 </div>
@@ -543,8 +544,8 @@ export default function Jobs() {
             <div className="space-y-8">
               <section className="space-y-4">
                 <SectionHeader
-                  title="Platform jobs"
-                  description="Roles posted directly on RecruitAI and ready for application."
+                  title="Jobs"
+                  description="Backend-served openings refreshed from your current search."
                 />
 
                 {jobsError ? (
@@ -577,33 +578,11 @@ export default function Jobs() {
                   </div>
                 ) : null}
 
-                {!loadingJobs && !jobsError && !jobs.length ? (
-                  <EmptyState
-                    title="No platform jobs found"
-                    description="Try broadening your search or clearing a few filters."
-                    action={<Button onClick={clearFilters}>Reset filters</Button>}
-                  />
-                ) : null}
-
-                {!loadingJobs && !jobsError && jobs.length ? (
-                  <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {jobs.map((job, index) => (
-                      <JobCard key={getJobKey(job, index, "int")} job={job} />
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-
-              <section className="space-y-4">
-                <SectionHeader
-                  title="Across the web"
-                  description="Public job listings pulled from external sources and refreshed from your search."
-                />
-
                 {!loadingJobs && !externalJobs.length ? (
                   <EmptyState
-                    title="No external jobs found"
+                    title="No jobs found"
                     description="Try a broader title or a different location to widen the external search."
+                    action={<Button onClick={clearFilters}>Reset filters</Button>}
                   />
                 ) : null}
 

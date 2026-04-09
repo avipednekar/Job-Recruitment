@@ -2,6 +2,242 @@ import axios from "axios";
 import Job from "../models/Job.js";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+const INDIA_LABEL = "india";
+const INDIA_STATE_TERMS = new Set([
+  "andhra pradesh",
+  "arunachal pradesh",
+  "assam",
+  "bihar",
+  "chhattisgarh",
+  "goa",
+  "gujarat",
+  "haryana",
+  "himachal pradesh",
+  "jharkhand",
+  "karnataka",
+  "kerala",
+  "madhya pradesh",
+  "maharashtra",
+  "manipur",
+  "meghalaya",
+  "mizoram",
+  "nagaland",
+  "odisha",
+  "orissa",
+  "punjab",
+  "rajasthan",
+  "sikkim",
+  "tamil nadu",
+  "telangana",
+  "tripura",
+  "uttar pradesh",
+  "uttarakhand",
+  "west bengal",
+  "andaman and nicobar islands",
+  "chandigarh",
+  "dadra and nagar haveli and daman and diu",
+  "daman and diu",
+  "delhi",
+  "national capital territory of delhi",
+  "jammu and kashmir",
+  "ladakh",
+  "lakshadweep",
+  "puducherry",
+]);
+const LOCATION_PREFIX_PATTERN =
+  /^(village|vill|post|po|tal|taluka|tehsil|dist|district|near|via)\s+/i;
+const GENERIC_SEARCH_SKILLS = new Set([
+  "algorithms",
+  "data structures",
+  "oop",
+  "git",
+  "postman",
+  "system design",
+  "problem solving",
+]);
+
+const normalizeText = (value = "") =>
+  String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9+#]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const uniqueValues = (values = []) => [...new Set(values.filter(Boolean))];
+const splitLocationTokens = (value = "") =>
+  uniqueValues(
+    String(value)
+      .split(/[,/|()-]+/)
+      .map((part) => normalizeText(String(part).replace(LOCATION_PREFIX_PATTERN, "")))
+      .filter((part) => part && part !== INDIA_LABEL),
+  );
+
+const classifyLocationTokens = (value = "") => {
+  const tokens = splitLocationTokens(value);
+  const localityTerms = tokens.filter((token) => !INDIA_STATE_TERMS.has(token));
+  const broaderTerms = tokens.filter((token) => INDIA_STATE_TERMS.has(token));
+
+  return {
+    tokens,
+    localityTerms,
+    broaderTerms,
+  };
+};
+
+const getExternalJobLocationText = (job) =>
+  normalizeText(
+    [
+      job?.job_city,
+      job?.job_state,
+      job?.job_location,
+      job?.location,
+      job?.job_country,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+const isIndiaLocation = (value = "") => normalizeText(value).includes(INDIA_LABEL);
+const getCandidatePreferredLocation = (candidate) =>
+  candidate?.personal_info?.location?.trim() || "";
+
+const resolveSearchLocationTerms = (location = "") => {
+  const { localityTerms, broaderTerms } = classifyLocationTokens(location);
+
+  if (localityTerms.length >= 2) {
+    return [...localityTerms.slice(-2), ...broaderTerms.slice(-1)];
+  }
+  if (localityTerms.length === 1) {
+    return [...localityTerms, ...broaderTerms.slice(-1)];
+  }
+  return broaderTerms.slice(-1);
+};
+
+const isIndiaExternalJob = (job) =>
+  isIndiaLocation(job?.job_country || "") ||
+  isIndiaLocation(job?.job_location || "") ||
+  isIndiaLocation(job?.location || "");
+
+const matchesAnyLocationTerm = (jobLocation, terms = []) =>
+  terms.some((term) => jobLocation.includes(term) || term.includes(jobLocation));
+
+const matchesCandidateLocation = (job, candidateLocation) => {
+  if (!candidateLocation) {
+    return true;
+  }
+
+  if (job?.job_is_remote || job?.remote) {
+    return true;
+  }
+
+  const target = normalizeText(candidateLocation);
+  const { localityTerms, broaderTerms } = classifyLocationTokens(candidateLocation);
+  const jobLocation = getExternalJobLocationText(job);
+
+  if (!jobLocation) {
+    return false;
+  }
+
+  if (jobLocation.includes(target) || target.includes(jobLocation)) {
+    return true;
+  }
+
+  if (matchesAnyLocationTerm(jobLocation, localityTerms)) {
+    return true;
+  }
+
+  return !localityTerms.length && matchesAnyLocationTerm(jobLocation, broaderTerms);
+};
+
+const getCandidateSkills = (candidate) =>
+  Array.isArray(candidate?.skills?.skills) ? candidate.skills.skills : [];
+
+const inferRecommendationRole = (candidate, skills = []) => {
+  const normalizedSkills = skills.map((skill) => normalizeText(skill));
+
+  if (normalizedSkills.some((skill) => ["pytorch", "llms", "machine learning", "ml", "ai"].includes(skill))) {
+    return "Machine Learning Engineer";
+  }
+
+  if (normalizedSkills.some((skill) => ["tableau", "sql", "data analysis"].includes(skill))) {
+    return "Data Analyst";
+  }
+
+  if (normalizedSkills.some((skill) => ["aws", "terraform", "kubernetes", "devops"].includes(skill))) {
+    return "DevOps Engineer";
+  }
+
+  if (normalizedSkills.some((skill) => ["react", "typescript", "javascript", "html", "css"].includes(skill))) {
+    return "Frontend Developer";
+  }
+
+  if (normalizedSkills.some((skill) => ["nodejs", "node js", "mongodb", "mysql", "postgresql", "java", "python"].includes(skill))) {
+    return "Software Engineer";
+  }
+
+  const latestRole =
+    candidate?.experience?.[0]?.title ||
+    candidate?.experience?.[0]?.role ||
+    candidate?.experience?.[0]?.position ||
+    "";
+
+  return latestRole || "Software Engineer";
+};
+
+const pickSearchSkills = (skills = [], limit = 3) =>
+  uniqueValues(
+    skills
+      .map((skill) => String(skill).trim())
+      .filter((skill) => skill && !GENERIC_SEARCH_SKILLS.has(normalizeText(skill))),
+  ).slice(0, limit);
+
+const extractProjectKeywords = (projects = [], limit = 2) => {
+  if (!Array.isArray(projects)) {
+    return [];
+  }
+
+  const keywords = [];
+  for (const project of projects) {
+    const name = typeof project === "string" ? project : project?.name || project?.title || "";
+    const description = typeof project === "object" ? project?.description || "" : "";
+
+    if (name) keywords.push(name.trim());
+    if (description) {
+      const significantWords = description
+        .split(/\s+/)
+        .map((word) => word.replace(/[^a-zA-Z0-9+#]/g, ""))
+        .filter((word) => word.length >= 4);
+      keywords.push(...significantWords.slice(0, 2));
+    }
+  }
+
+  return uniqueValues(keywords).slice(0, limit);
+};
+
+const buildExternalJobQuery = (candidate) => {
+  const skills = getCandidateSkills(candidate);
+  const role = inferRecommendationRole(candidate, skills);
+  const topSkills = pickSearchSkills(skills, 3);
+  const projectKeywords = extractProjectKeywords(candidate?.projects || [], 1);
+  const location = getCandidatePreferredLocation(candidate);
+
+  return uniqueValues([
+    role,
+    ...topSkills,
+    ...projectKeywords,
+    ...resolveSearchLocationTerms(location),
+    "India",
+  ]).join(" ");
+};
+
+const extractMatchingSkillsFromExternalJob = (job, candidateSkills = []) => {
+  const haystack = normalizeText(`${job?.job_title || ""} ${job?.job_description || ""}`);
+
+  return candidateSkills.filter((skill) => {
+    const normalizedSkill = normalizeText(skill);
+    return normalizedSkill.length >= 2 && haystack.includes(normalizedSkill);
+  });
+};
 
 /* ──────────────────────────────────────────────
    GET /api/jobs — Search, filter, paginate
@@ -334,17 +570,9 @@ export const getJobRecommendations = async (req, res) => {
     // 4. Fetch External Jobs (JSearch API)
     let externalJobs = [];
     try {
-      // Build dynamic query: "[Latest Job Title] [Top Skill] in [Location]"
-      let queryParts = [];
-      if (candidate.experience && candidate.experience.length > 0) {
-        queryParts.push(candidate.experience[0].title);
-      }
-      if (candidate.skills && candidate.skills.skills && candidate.skills.skills.length > 0) {
-        queryParts.push(candidate.skills.skills[0]); 
-      }
-      
-      const location = candidate.personal_info?.location || "";
-      const query = queryParts.join(" ") + (location ? ` in ${location}` : "");
+      const query = buildExternalJobQuery(candidate);
+      const candidateSkills = getCandidateSkills(candidate);
+      const candidateLocation = getCandidatePreferredLocation(candidate);
       
       if (query.trim() && process.env.RAPIDAPI_KEY) {
         const externalResponse = await axios.get("https://jsearch.p.rapidapi.com/search", {
@@ -354,21 +582,70 @@ export const getJobRecommendations = async (req, res) => {
             "x-rapidapi-host": "jsearch.p.rapidapi.com"
           }
         });
-        externalJobs = externalResponse.data.data.map(job => ({
+        externalJobs = externalResponse.data.data
+          .filter((job) => isIndiaExternalJob({
+            job_country: job.job_country,
+            job_location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
+            location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
+          }))
+          .filter((job) => matchesCandidateLocation(job, candidateLocation))
+          .map(job => ({
           _id: job.job_id,
           id: job.job_id,
           title: job.job_title,
           company: job.employer_name,
-          location: job.job_city ? `${job.job_city}, ${job.job_country}` : "Remote",
-          description: job.job_description?.substring(0, 150) + "...",
+          location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", ") || "Remote",
+          description: job.job_description || "",
           employment_type: job.job_employment_type?.replace(/_/g, " "),
           remote: job.job_is_remote,
           logo: job.employer_logo,
           apply_link: job.job_apply_link,
           external_url: job.job_apply_link,
           postedAt: job.job_posted_at_datetime_utc,
+          salary_range: job.job_min_salary && job.job_max_salary
+            ? `${job.job_min_salary}-${job.job_max_salary}`
+            : "",
+          experience_level: job.job_required_experience?.required_experience_in_months
+            ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
+            : "",
+          skills: extractMatchingSkillsFromExternalJob(job, candidateSkills),
           source: "external"
         })) || [];
+
+        if (externalJobs.length > 0) {
+          try {
+            const externalRankingResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
+              candidate_data: candidate,
+              jobs_list: externalJobs,
+            });
+
+            if (externalRankingResponse.data.success && externalRankingResponse.data.ranked_jobs) {
+              externalJobs = externalRankingResponse.data.ranked_jobs.map((ranked) => {
+                const fullJob = externalJobs.find((job) => String(job.id) === ranked.job_id);
+                return fullJob
+                  ? {
+                      ...fullJob,
+                      match_metrics: ranked,
+                      description: fullJob.description
+                        ? `${fullJob.description.substring(0, 150)}...`
+                        : "",
+                    }
+                  : null;
+              }).filter(Boolean);
+            } else {
+              externalJobs = externalJobs.map((job) => ({
+                ...job,
+                description: job.description ? `${job.description.substring(0, 150)}...` : "",
+              }));
+            }
+          } catch (rankErr) {
+            console.error("External AI Ranking Error:", rankErr.message);
+            externalJobs = externalJobs.map((job) => ({
+              ...job,
+              description: job.description ? `${job.description.substring(0, 150)}...` : "",
+            }));
+          }
+        }
       }
     } catch (err) {
       console.error("External JSearch Error:", err.message);

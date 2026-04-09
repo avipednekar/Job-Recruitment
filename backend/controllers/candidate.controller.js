@@ -33,7 +33,22 @@ export const uploadResume = async (req, res) => {
     const skillsObj = parsedData.skills || {};
     const skillsList = skillsObj.skills || [];
     const summary = parsedData.personal_info?.summary || "";
-    const combinedText = `${summary} ${skillsList.join(" ")}`;
+    const location = parsedData.personal_info?.location || "";
+    const experienceText = Array.isArray(parsedData.experience)
+      ? parsedData.experience
+          .map((entry) =>
+            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
+          )
+          .join(" ")
+      : "";
+    const projectText = Array.isArray(parsedData.projects)
+      ? parsedData.projects
+          .map((entry) =>
+            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
+          )
+          .join(" ")
+      : "";
+    const combinedText = `${summary} ${skillsList.join(" ")} ${experienceText} ${projectText} ${location}`.trim();
 
     const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
       text: combinedText,
