@@ -23,6 +23,12 @@ INDIA_LOCATION_KEYWORDS = {
     "rajasthan", "uttar pradesh", "madhya pradesh", "west bengal",
 }
 
+INSTITUTION_KEYWORDS = {
+    "college", "university", "institute", "school", "campus", "academy",
+    "polytechnic", "faculty", "department", "education", "engineering college",
+    "bachelor", "master", "btech", "mtech", "b e", "be", "bsc", "msc", "mba",
+}
+
 
 def _get_nlp():
     """
@@ -151,8 +157,56 @@ def _clean_location_text(value):
     return cleaned
 
 
-def _looks_like_location(value):
+def _looks_like_institution(value):
     cleaned = _clean_location_text(value)
+    if not cleaned:
+        return False
+
+    lowered = cleaned.lower()
+    return any(keyword in lowered for keyword in INSTITUTION_KEYWORDS)
+
+
+def _extract_location_fragment(value):
+    cleaned = _clean_location_text(value)
+    if not cleaned:
+        return None
+
+    parts = [part.strip() for part in re.split(r"[,|;/()-]+", cleaned) if part.strip()]
+    if not parts:
+        return None
+
+    collected = []
+    for part in reversed(parts):
+        part_clean = _clean_location_text(part)
+        if not part_clean:
+            continue
+
+        lowered = part_clean.lower()
+        if _looks_like_institution(part_clean):
+            if collected:
+                break
+            continue
+
+        if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS):
+            collected.insert(0, part_clean)
+            if len(collected) >= 2:
+                break
+            continue
+
+        if collected:
+            break
+
+    if collected:
+        return ", ".join(collected)
+
+    if _looks_like_institution(cleaned):
+        return None
+
+    return cleaned
+
+
+def _looks_like_location(value):
+    cleaned = _extract_location_fragment(value)
     if not cleaned:
         return False
 
@@ -177,7 +231,7 @@ def extract_location(text):
 
     label_match = re.search(LOCATION_LABEL_REGEX, top_text)
     if label_match:
-        labeled_location = _clean_location_text(label_match.group(1))
+        labeled_location = _extract_location_fragment(label_match.group(1))
         if _looks_like_location(labeled_location):
             return labeled_location
 
@@ -186,6 +240,6 @@ def extract_location(text):
             continue
 
         if _looks_like_location(line):
-            return _clean_location_text(line)
+            return _extract_location_fragment(line)
 
     return None

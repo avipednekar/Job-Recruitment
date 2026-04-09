@@ -5,6 +5,30 @@ import axios from "axios";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 
+const flattenProfileEntries = (entries) =>
+  Array.isArray(entries)
+    ? entries
+        .map((entry) =>
+          typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
+        )
+        .join(" ")
+    : "";
+
+const buildCandidateEmbeddingText = ({
+  personal_info = {},
+  skills = {},
+  experience = [],
+  projects = [],
+}) => {
+  const skillsList = skills?.skills || [];
+  const summary = personal_info?.summary || "";
+  const location = personal_info?.location || "";
+  const experienceText = flattenProfileEntries(experience);
+  const projectText = flattenProfileEntries(projects);
+
+  return `${summary} ${skillsList.join(" ")} ${experienceText} ${projectText} ${location}`.trim();
+};
+
 // ─────────────────────────────────────────────
 // GET /api/profile/me
 // ─────────────────────────────────────────────
@@ -57,25 +81,12 @@ export const createJobSeekerProfile = async (req, res) => {
     const { personal_info, skills, education, experience, projects } = req.body;
 
     // Build embedding from summary + skills + experience + projects + location
-    const skillsList = skills?.skills || [];
-    const summary = personal_info?.summary || "";
-    const location = personal_info?.location || "";
-    const experienceText = Array.isArray(experience)
-      ? experience
-          .map((entry) =>
-            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
-          )
-          .join(" ")
-      : "";
-    const projectText = Array.isArray(projects)
-      ? projects
-          .map((entry) =>
-            typeof entry === "string" ? entry : Object.values(entry || {}).join(" "),
-          )
-          .join(" ")
-      : "";
-    const combinedText =
-      `${summary} ${skillsList.join(" ")} ${experienceText} ${projectText} ${location}`.trim();
+    const combinedText = buildCandidateEmbeddingText({
+      personal_info,
+      skills,
+      experience,
+      projects,
+    });
 
     let embedding = [];
     try {
@@ -206,12 +217,111 @@ export const updateProfile = async (req, res) => {
     }
 
     // Update user-level fields
-    const { name, phone, linkedin, avatar } = req.body;
-    if (name) user.name = name;
-    if (phone !== undefined) user.phone = phone;
-    if (linkedin !== undefined) user.linkedin = linkedin;
+    const { name, phone, linkedin, avatar, personal_info } = req.body;
+    const nextName = name !== undefined ? name : personal_info?.name;
+    const nextPhone = phone !== undefined ? phone : personal_info?.phone;
+    const nextLinkedin = linkedin !== undefined ? linkedin : personal_info?.linkedin;
+
+    if (nextName !== undefined) user.name = nextName;
+    if (nextPhone !== undefined) user.phone = nextPhone;
+    if (nextLinkedin !== undefined) user.linkedin = nextLinkedin;
     if (avatar !== undefined) user.avatar = avatar;
     await user.save();
+
+    let profile = null;
+
+    if (user.role === "job_seeker") {
+      const existingCandidate = await Candidate.findOne({ user: user._id }).lean();
+
+      if (personal_info) {
+        const mergedPersonalInfo = {
+          ...(existingCandidate?.personal_info || {}),
+          ...personal_info,
+          name:
+            personal_info.name ??
+            existingCandidate?.personal_info?.name ??
+            user.name,
+          email:
+            personal_info.email ??
+            existingCandidate?.personal_info?.email ??
+            user.email,
+          phone:
+            personal_info.phone ??
+            existingCandidate?.personal_info?.phone ??
+            user.phone ??
+            "",
+          location:
+            personal_info.location ??
+            existingCandidate?.personal_info?.location ??
+            "",
+          github:
+            personal_info.github ??
+            existingCandidate?.personal_info?.github ??
+            "",
+          linkedin:
+            personal_info.linkedin ??
+            existingCandidate?.personal_info?.linkedin ??
+            user.linkedin ??
+            "",
+          summary:
+            personal_info.summary ??
+            existingCandidate?.personal_info?.summary ??
+            "",
+        };
+
+        const candidatePayload = {
+          user: user._id,
+          personal_info: mergedPersonalInfo,
+          skills: existingCandidate?.skills || { skills: [], confidence_score: 0 },
+          education: existingCandidate?.education || [],
+          experience: existingCandidate?.experience || [],
+          projects: existingCandidate?.projects || [],
+          embedding: existingCandidate?.embedding || new Array(384).fill(0),
+        };
+
+        const combinedText = buildCandidateEmbeddingText(candidatePayload);
+
+        try {
+          const embedRes = await axios.post(`${AI_SERVICE_URL}/embed`, {
+            text: combinedText,
+          });
+          candidatePayload.embedding = embedRes.data.embedding;
+        } catch (embedErr) {
+          console.warn(
+            "Embedding refresh failed during profile update:",
+            embedErr.message,
+          );
+        }
+
+        const updatedCandidate = await Candidate.findOneAndUpdate(
+          { user: user._id },
+          {
+            $set: {
+              personal_info: candidatePayload.personal_info,
+              skills: candidatePayload.skills,
+              education: candidatePayload.education,
+              experience: candidatePayload.experience,
+              projects: candidatePayload.projects,
+              embedding: candidatePayload.embedding,
+              user: user._id,
+            },
+          },
+          {
+            new: true,
+            upsert: true,
+            setDefaultsOnInsert: true,
+          },
+        );
+
+        user.profileComplete = true;
+        user.candidate = updatedCandidate._id;
+        await user.save();
+      }
+
+      profile = await Candidate.findOne({ user: user._id }).lean();
+    } else if (user.role === "recruiter") {
+      profile = await Company.findOne({ user: user._id }).lean();
+    }
 
     res.json({
       success: true,
@@ -226,6 +336,7 @@ export const updateProfile = async (req, res) => {
         avatar: user.avatar,
         profileComplete: user.profileComplete,
       },
+      profile,
     });
   } catch (error) {
     console.error("Update Profile Error:", error.message);

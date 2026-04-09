@@ -46,6 +46,7 @@ const INDIA_STATE_TERMS = new Set([
 ]);
 const LOCATION_PREFIX_PATTERN =
   /^(village|vill|post|po|tal|taluka|tehsil|dist|district|near|via)\s+/i;
+const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
 const GENERIC_SEARCH_SKILLS = new Set([
   "algorithms",
   "data structures",
@@ -55,6 +56,74 @@ const GENERIC_SEARCH_SKILLS = new Set([
   "system design",
   "problem solving",
 ]);
+const COMMON_TECH_SKILLS = [
+  "Python",
+  "Java",
+  "JavaScript",
+  "TypeScript",
+  "React",
+  "Node.js",
+  "Express",
+  "HTML",
+  "CSS",
+  "Next.js",
+  "Angular",
+  "Vue",
+  "SQL",
+  "MySQL",
+  "PostgreSQL",
+  "MongoDB",
+  "Redis",
+  "AWS",
+  "Azure",
+  "GCP",
+  "Docker",
+  "Kubernetes",
+  "Git",
+  "Linux",
+  "REST API",
+  "GraphQL",
+  "Spring Boot",
+  "Django",
+  "Flask",
+  "FastAPI",
+  "C#",
+  ".NET",
+  "PHP",
+  "Laravel",
+  "Android",
+  "iOS",
+  "Swift",
+  "Kotlin",
+  "Machine Learning",
+  "AI",
+  "Data Analysis",
+  "Tableau",
+  "Power BI",
+  "Excel",
+];
+const ENTRY_LEVEL_TITLE_TERMS = [
+  "fresher",
+  "entry level",
+  "entry-level",
+  "junior",
+  "associate",
+  "intern",
+  "internship",
+  "trainee",
+  "apprentice",
+  "graduate",
+];
+const SENIOR_TITLE_TERMS = [
+  "senior",
+  "sr",
+  "lead",
+  "manager",
+  "architect",
+  "staff",
+  "principal",
+  "head",
+];
 
 const normalizeText = (value = "") =>
   String(value)
@@ -64,6 +133,14 @@ const normalizeText = (value = "") =>
     .trim();
 
 const uniqueValues = (values = []) => [...new Set(values.filter(Boolean))];
+const splitLocationParts = (value = "") =>
+  uniqueValues(
+    String(value)
+      .split(/[,/;()|-]+/)
+      .map((part) => normalizeText(part))
+      .filter(Boolean),
+  );
+
 const splitLocationTokens = (value = "") =>
   uniqueValues(
     String(value)
@@ -97,9 +174,23 @@ const getExternalJobLocationText = (job) =>
       .join(" "),
   );
 
-const isIndiaLocation = (value = "") => normalizeText(value).includes(INDIA_LABEL);
+const isIndiaLocation = (value = "") =>
+  splitLocationParts(value).some((part) => INDIA_LOCATION_PARTS.has(part));
 const getCandidatePreferredLocation = (candidate) =>
   candidate?.personal_info?.location?.trim() || "";
+
+const buildExternalJobText = (job) =>
+  normalizeText(
+    [
+      job?.job_title,
+      job?.job_description,
+      job?.job_required_experience?.experience_mentioned,
+      job?.job_highlights?.Qualifications?.join(" "),
+      job?.job_highlights?.Responsibilities?.join(" "),
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
 
 const resolveSearchLocationTerms = (location = "") => {
   const { localityTerms, broaderTerms } = classifyLocationTokens(location);
@@ -151,6 +242,115 @@ const matchesCandidateLocation = (job, candidateLocation) => {
 
 const getCandidateSkills = (candidate) =>
   Array.isArray(candidate?.skills?.skills) ? candidate.skills.skills : [];
+
+const estimateCandidateYears = (candidate) => {
+  const experience = Array.isArray(candidate?.experience) ? candidate.experience : [];
+
+  if (!experience.length) {
+    return 0;
+  }
+
+  return experience.reduce((total, entry) => {
+    const entryText = typeof entry === "string"
+      ? entry.toLowerCase()
+      : Object.values(entry || {}).join(" ").toLowerCase();
+
+    if (/(intern|internship|trainee|apprentice|fresher)/.test(entryText)) {
+      return total + 0.4;
+    }
+
+    return total + 0.75;
+  }, 0);
+};
+
+const inferCandidateSeniority = (candidate) => {
+  const years = estimateCandidateYears(candidate);
+
+  if (years < 0.5) return "fresher";
+  if (years < 1.5) return "entry level";
+  if (years < 3) return "junior";
+  if (years < 5) return "mid level";
+  return "senior";
+};
+
+const hasAnyKeyword = (text, keywords = []) => {
+  const normalizedText = normalizeText(text);
+  const tokens = new Set(normalizedText.split(" ").filter(Boolean));
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+    if (normalizedKeyword.includes(" ")) {
+      return normalizedText.includes(normalizedKeyword);
+    }
+    return tokens.has(normalizedKeyword);
+  });
+};
+
+const extractRequiredYearsFromExternalJob = (job) => {
+  const months = job?.job_required_experience?.required_experience_in_months;
+  if (typeof months === "number" && !Number.isNaN(months)) {
+    return months / 12;
+  }
+
+  const rawExperienceText = [
+    job?.job_title,
+    job?.job_required_experience?.experience_mentioned,
+    job?.job_description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const experienceText = normalizeText(rawExperienceText);
+  const rangeMatch = rawExperienceText.match(/(\d+)\s*(?:\+|plus)?\s*(?:-|to)\s*(\d+)\s*years?/i);
+  if (rangeMatch) {
+    return Number(rangeMatch[1]);
+  }
+
+  const numericMatch = rawExperienceText.match(/(\d+)\s*(?:\+|plus)?\s*years?/i);
+  if (numericMatch) {
+    return Number(numericMatch[1]);
+  }
+
+  if (hasAnyKeyword(experienceText, ["principal", "staff"])) return 8;
+  if (hasAnyKeyword(experienceText, ["architect", "manager", "lead"])) return 6;
+  if (hasAnyKeyword(experienceText, ["senior"])) return 5;
+  if (hasAnyKeyword(experienceText, ["mid", "intermediate"])) return 3;
+  if (hasAnyKeyword(experienceText, ["junior"])) return 1;
+  if (hasAnyKeyword(experienceText, ["entry", "fresher", "intern", "trainee", "apprentice", "graduate"])) return 0;
+  return 0;
+};
+
+const exceedsCandidateExperience = (job, candidateYears) => {
+  const requiredYears = extractRequiredYearsFromExternalJob(job);
+  const titleText = normalizeText(job?.job_title || "");
+  const fullText = buildExternalJobText(job);
+
+  if (candidateYears < 0.5) {
+    if (requiredYears >= 1) {
+      return true;
+    }
+    if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) || hasAnyKeyword(fullText, ["2 years", "3 years", "4 years", "5 years"])) {
+      return true;
+    }
+  }
+
+  if (candidateYears < 1.5 && hasAnyKeyword(titleText, ["lead", "manager", "architect", "staff", "principal", "head"])) {
+    return true;
+  }
+
+  if (candidateYears < 2 && hasAnyKeyword(titleText, ["senior", "sr"])) {
+    return true;
+  }
+
+  if (!requiredYears) {
+    return false;
+  }
+
+  return (requiredYears - candidateYears) >= 1.5;
+};
 
 const inferRecommendationRole = (candidate, skills = []) => {
   const normalizedSkills = skills.map((skill) => normalizeText(skill));
@@ -220,8 +420,10 @@ const buildExternalJobQuery = (candidate) => {
   const topSkills = pickSearchSkills(skills, 3);
   const projectKeywords = extractProjectKeywords(candidate?.projects || [], 1);
   const location = getCandidatePreferredLocation(candidate);
+  const seniority = inferCandidateSeniority(candidate);
 
   return uniqueValues([
+    seniority,
     role,
     ...topSkills,
     ...projectKeywords,
@@ -230,13 +432,80 @@ const buildExternalJobQuery = (candidate) => {
   ]).join(" ");
 };
 
-const extractMatchingSkillsFromExternalJob = (job, candidateSkills = []) => {
-  const haystack = normalizeText(`${job?.job_title || ""} ${job?.job_description || ""}`);
-
-  return candidateSkills.filter((skill) => {
+const extractExternalJobSkills = (job, candidateSkills = []) => {
+  const haystack = buildExternalJobText(job);
+  const matchedCandidateSkills = candidateSkills.filter((skill) => {
     const normalizedSkill = normalizeText(skill);
     return normalizedSkill.length >= 2 && haystack.includes(normalizedSkill);
   });
+  const matchedCommonSkills = COMMON_TECH_SKILLS.filter((skill) =>
+    haystack.includes(normalizeText(skill)),
+  );
+
+  return uniqueValues([...matchedCandidateSkills, ...matchedCommonSkills]).slice(0, 12);
+};
+
+const scoreExternalJobLocally = (
+  job,
+  candidateSkills,
+  candidateLocation,
+  candidateYears,
+  inferredRole,
+) => {
+  const titleText = normalizeText(job?.job_title || "");
+  const jobText = buildExternalJobText(job);
+  const inferredSkills = extractExternalJobSkills(job, candidateSkills);
+  const normalizedCandidateSkills = candidateSkills.map((skill) => normalizeText(skill));
+  const matchedSkills = inferredSkills.filter((skill) =>
+    normalizedCandidateSkills.includes(normalizeText(skill)),
+  );
+  const skillScore = inferredSkills.length
+    ? (matchedSkills.length / inferredSkills.length) * 100
+    : 35;
+
+  const roleTerms = normalizeText(inferredRole)
+    .split(" ")
+    .filter((token) => token.length >= 3);
+  const roleMatches = roleTerms.filter((token) => titleText.includes(token) || jobText.includes(token));
+  const roleScore = roleMatches.length ? Math.min(100, roleMatches.length * 35) : 20;
+
+  const locationScore = matchesCandidateLocation(job, candidateLocation)
+    ? 100
+    : job?.job_is_remote
+      ? 75
+      : 0;
+
+  const requiredYears = extractRequiredYearsFromExternalJob(job);
+  let experienceFitScore = 70;
+  if (requiredYears > 0) {
+    if (candidateYears >= requiredYears) {
+      experienceFitScore = 100;
+    } else {
+      experienceFitScore = Math.max(0, 100 - ((requiredYears - candidateYears) * 40));
+    }
+  }
+
+  let careerStageScore = 55;
+  if (candidateYears < 1.5) {
+    if (hasAnyKeyword(titleText, ENTRY_LEVEL_TITLE_TERMS)) {
+      careerStageScore = 100;
+    } else if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS)) {
+      careerStageScore = 0;
+    }
+  }
+
+  const localScore = (
+    (skillScore * 0.34) +
+    (roleScore * 0.18) +
+    (locationScore * 0.16) +
+    (experienceFitScore * 0.20) +
+    (careerStageScore * 0.12)
+  );
+
+  return {
+    score: Math.round(localScore * 100) / 100,
+    inferredSkills,
+  };
 };
 
 /* ──────────────────────────────────────────────
@@ -573,6 +842,8 @@ export const getJobRecommendations = async (req, res) => {
       const query = buildExternalJobQuery(candidate);
       const candidateSkills = getCandidateSkills(candidate);
       const candidateLocation = getCandidatePreferredLocation(candidate);
+      const candidateYears = estimateCandidateYears(candidate);
+      const inferredRole = inferRecommendationRole(candidate, candidateSkills);
       
       if (query.trim() && process.env.RAPIDAPI_KEY) {
         const externalResponse = await axios.get("https://jsearch.p.rapidapi.com/search", {
@@ -583,34 +854,47 @@ export const getJobRecommendations = async (req, res) => {
           }
         });
         externalJobs = externalResponse.data.data
+          .filter((job) => !exceedsCandidateExperience(job, candidateYears))
           .filter((job) => isIndiaExternalJob({
             job_country: job.job_country,
             job_location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
             location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
           }))
           .filter((job) => matchesCandidateLocation(job, candidateLocation))
-          .map(job => ({
-          _id: job.job_id,
-          id: job.job_id,
-          title: job.job_title,
-          company: job.employer_name,
-          location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", ") || "Remote",
-          description: job.job_description || "",
-          employment_type: job.job_employment_type?.replace(/_/g, " "),
-          remote: job.job_is_remote,
-          logo: job.employer_logo,
-          apply_link: job.job_apply_link,
-          external_url: job.job_apply_link,
-          postedAt: job.job_posted_at_datetime_utc,
-          salary_range: job.job_min_salary && job.job_max_salary
-            ? `${job.job_min_salary}-${job.job_max_salary}`
-            : "",
-          experience_level: job.job_required_experience?.required_experience_in_months
-            ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
-            : "",
-          skills: extractMatchingSkillsFromExternalJob(job, candidateSkills),
-          source: "external"
-        })) || [];
+          .map((job) => {
+            const localRanking = scoreExternalJobLocally(
+              job,
+              candidateSkills,
+              candidateLocation,
+              candidateYears,
+              inferredRole,
+            );
+
+            return {
+              _id: job.job_id,
+              id: job.job_id,
+              title: job.job_title,
+              company: job.employer_name,
+              location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", ") || "Remote",
+              description: job.job_description || "",
+              employment_type: job.job_employment_type?.replace(/_/g, " "),
+              remote: job.job_is_remote,
+              logo: job.employer_logo,
+              apply_link: job.job_apply_link,
+              external_url: job.job_apply_link,
+              postedAt: job.job_posted_at_datetime_utc,
+              salary_range: job.job_min_salary && job.job_max_salary
+                ? `${job.job_min_salary}-${job.job_max_salary}`
+                : "",
+              experience_level: job.job_required_experience?.required_experience_in_months
+                ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
+                : "",
+              skills: localRanking.inferredSkills,
+              source: "external",
+              local_match_score: localRanking.score,
+            };
+          })
+          .sort((left, right) => (right.local_match_score || 0) - (left.local_match_score || 0)) || [];
 
         if (externalJobs.length > 0) {
           try {
@@ -622,19 +906,34 @@ export const getJobRecommendations = async (req, res) => {
             if (externalRankingResponse.data.success && externalRankingResponse.data.ranked_jobs) {
               externalJobs = externalRankingResponse.data.ranked_jobs.map((ranked) => {
                 const fullJob = externalJobs.find((job) => String(job.id) === ranked.job_id);
+                const blendedScore = fullJob
+                  ? ((ranked.overall_match_score * 0.7) + ((fullJob.local_match_score || 0) * 0.3))
+                  : ranked.overall_match_score;
                 return fullJob
                   ? {
                       ...fullJob,
-                      match_metrics: ranked,
+                      match_metrics: {
+                        ...ranked,
+                        overall_match_score: Math.round(blendedScore * 100) / 100,
+                      },
                       description: fullJob.description
                         ? `${fullJob.description.substring(0, 150)}...`
                         : "",
                     }
                   : null;
-              }).filter(Boolean);
+              })
+                .filter(Boolean)
+                .sort(
+                  (left, right) =>
+                    (right.match_metrics?.overall_match_score || 0) -
+                    (left.match_metrics?.overall_match_score || 0),
+                );
             } else {
               externalJobs = externalJobs.map((job) => ({
                 ...job,
+                match_metrics: {
+                  overall_match_score: job.local_match_score || 0,
+                },
                 description: job.description ? `${job.description.substring(0, 150)}...` : "",
               }));
             }
@@ -642,6 +941,9 @@ export const getJobRecommendations = async (req, res) => {
             console.error("External AI Ranking Error:", rankErr.message);
             externalJobs = externalJobs.map((job) => ({
               ...job,
+              match_metrics: {
+                overall_match_score: job.local_match_score || 0,
+              },
               description: job.description ? `${job.description.substring(0, 150)}...` : "",
             }));
           }

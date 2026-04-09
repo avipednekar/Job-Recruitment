@@ -51,6 +51,8 @@ const INDIA_STATE_TERMS = new Set([
 ]);
 const LOCATION_PREFIX_PATTERN =
   /^(village|vill|post|po|tal|taluka|tehsil|dist|district|near|via)\s+/i;
+const LOCATION_GROUP_SPLIT_REGEX = /\s*(?:;|\||\r?\n)+\s*/;
+const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
 
 const normalizeText = (value = "") =>
   String(value)
@@ -61,10 +63,26 @@ const normalizeText = (value = "") =>
 
 const uniqueValues = (values = []) => [...new Set(values.filter(Boolean))];
 
+const splitLocationParts = (value = "") =>
+  uniqueValues(
+    String(value)
+      .split(/[,/;()|-]+/)
+      .map((part) => normalizeText(part))
+      .filter(Boolean),
+  );
+
+const splitLocationGroups = (value = "") =>
+  uniqueValues(
+    String(value)
+      .split(LOCATION_GROUP_SPLIT_REGEX)
+      .map((part) => String(part).trim())
+      .filter(Boolean),
+  );
+
 const splitLocationTokens = (value = "") =>
   uniqueValues(
     String(value)
-      .split(/[,/|()-]+/)
+      .split(/[,/()-]+/)
       .map((part) => normalizeText(String(part).replace(LOCATION_PREFIX_PATTERN, "")))
       .filter((part) => part && part !== INDIA_LABEL),
   );
@@ -94,15 +112,26 @@ const getJobLocationText = (job) =>
   );
 
 const resolveSearchLocationTerms = (location = "") => {
-  const { localityTerms, broaderTerms } = classifyLocationTokens(location);
+  const groups = splitLocationGroups(location);
+  const localityTerms = [];
+  const broaderTerms = [];
 
-  if (localityTerms.length >= 2) {
-    return [...localityTerms.slice(-2), ...broaderTerms.slice(-1)];
+  groups.forEach((group) => {
+    const classified = classifyLocationTokens(group);
+    localityTerms.push(...classified.localityTerms);
+    broaderTerms.push(...classified.broaderTerms);
+  });
+
+  const uniqueLocalityTerms = uniqueValues(localityTerms);
+  const uniqueBroaderTerms = uniqueValues(broaderTerms);
+
+  if (uniqueLocalityTerms.length >= 3) {
+    return [...uniqueLocalityTerms.slice(0, 3), ...uniqueBroaderTerms.slice(0, 1)];
   }
-  if (localityTerms.length === 1) {
-    return [...localityTerms, ...broaderTerms.slice(-1)];
+  if (uniqueLocalityTerms.length >= 1) {
+    return [...uniqueLocalityTerms, ...uniqueBroaderTerms.slice(0, 1)];
   }
-  return broaderTerms.slice(-1);
+  return uniqueBroaderTerms.slice(0, 2);
 };
 
 const buildIndiaScopedQuery = (q, location) =>
@@ -111,10 +140,13 @@ const buildIndiaScopedQuery = (q, location) =>
     .join(" ")
     .trim();
 
+const isIndiaLocation = (value = "") =>
+  splitLocationParts(value).some((part) => INDIA_LOCATION_PARTS.has(part));
+
 const isIndiaJob = (job) =>
-  normalizeText(job?.job_country || "").includes(INDIA_LABEL) ||
-  normalizeText(job?.job_location || "").includes(INDIA_LABEL) ||
-  normalizeText(job?.job_state || "").includes(INDIA_LABEL);
+  isIndiaLocation(job?.job_country || "") ||
+  isIndiaLocation(job?.job_location || "") ||
+  isIndiaLocation(job?.job_state || "");
 
 const matchesAnyLocationTerm = (jobLocation, terms = []) =>
   terms.some((term) => jobLocation.includes(term) || term.includes(jobLocation));
@@ -128,23 +160,27 @@ const matchesRequestedLocation = (job, requestedLocation) => {
     return true;
   }
 
-  const target = normalizeText(requestedLocation);
-  const { localityTerms, broaderTerms } = classifyLocationTokens(requestedLocation);
   const jobLocation = getJobLocationText(job);
+  const requestedGroups = splitLocationGroups(requestedLocation);
 
   if (!jobLocation) {
     return false;
   }
 
-  if (jobLocation.includes(target) || target.includes(jobLocation)) {
-    return true;
-  }
+  return requestedGroups.some((group) => {
+    const target = normalizeText(group);
+    const { localityTerms, broaderTerms } = classifyLocationTokens(group);
 
-  if (matchesAnyLocationTerm(jobLocation, localityTerms)) {
-    return true;
-  }
+    if (jobLocation.includes(target) || target.includes(jobLocation)) {
+      return true;
+    }
 
-  return !localityTerms.length && matchesAnyLocationTerm(jobLocation, broaderTerms);
+    if (matchesAnyLocationTerm(jobLocation, localityTerms)) {
+      return true;
+    }
+
+    return !localityTerms.length && matchesAnyLocationTerm(jobLocation, broaderTerms);
+  });
 };
 
 export const fetchExternalJobs = async (req, res) => {

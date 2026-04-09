@@ -4,6 +4,8 @@ from matching.matcher import (
     calculate_skill_score,
     calculate_project_score,
     calculate_experience_score,
+    extract_candidate_years,
+    extract_required_years,
     calculate_location_score,
     calculate_education_score,
     calculate_salary_score,
@@ -77,10 +79,18 @@ def recommend_jobs_for_candidate(candidate_data, jobs_list):
         )
 
         relevance_multiplier = 1.0
+        candidate_years = extract_candidate_years(cand_experience)
+        required_years = extract_required_years(job.get('experience_level'))
         if skill_score < 20 and project_score < 20:
             relevance_multiplier *= 0.35
+        if job.get('source') == 'external' and len(job.get('skills', [])) <= 1:
+            relevance_multiplier *= 0.7
         if location_score == 0 and not job.get('remote'):
             relevance_multiplier *= 0.75
+        if required_years > 0 and (required_years - candidate_years) >= 2:
+            relevance_multiplier *= 0.35
+        elif required_years > 0 and experience_score < 50:
+            relevance_multiplier *= 0.65
 
         total_score = base_score * relevance_multiplier
 

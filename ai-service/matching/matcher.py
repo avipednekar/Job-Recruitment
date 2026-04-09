@@ -40,6 +40,7 @@ SKILL_ALIASES = {
 }
 
 REMOTE_KEYWORDS = ('remote', 'work from home', 'wfh', 'anywhere')
+EARLY_CAREER_KEYWORDS = ('intern', 'internship', 'trainee', 'apprentice', 'fresher')
 INDIA_STATE_TERMS = {
     'andhra pradesh', 'arunachal pradesh', 'assam', 'bihar', 'chhattisgarh',
     'goa', 'gujarat', 'haryana', 'himachal pradesh', 'jharkhand', 'karnataka',
@@ -311,7 +312,7 @@ def calculate_tfidf_score(job_text, candidate_text):
 def calculate_skill_score(job_skills, candidate_skills):
     """Percentage of required job skills that the candidate possesses."""
     if not job_skills:
-        return 100.0
+        return 40.0
     if not candidate_skills:
         return 0.0
 
@@ -472,8 +473,16 @@ def _calculate_total_years(experience_data):
     if parsed_from_durations:
         return total_months / 12.0
 
-    # Fallback: count entries as ~1 year each
-    return float(len(entries))
+    # Fallback: estimate conservatively from the number/type of entries.
+    estimated_years = 0.0
+    for entry in entries:
+        entry_text = _entry_to_text(entry).lower()
+        if any(keyword in entry_text for keyword in EARLY_CAREER_KEYWORDS):
+            estimated_years += 0.4
+        else:
+            estimated_years += 0.75
+
+    return estimated_years
 
 
 def _parse_required_years(text):
@@ -488,7 +497,8 @@ def _parse_required_years(text):
     # Seniority keywords
     seniority_map = {
         'fresher': 0, 'entry': 0, 'junior': 1,
-        'mid': 3, 'senior': 5, 'lead': 7, 'staff': 8, 'principal': 10
+        'mid': 3, 'senior': 5, 'lead': 7, 'staff': 8, 'principal': 10,
+        'manager': 7, 'architect': 7
     }
     for keyword, years in seniority_map.items():
         if keyword in text_str:
@@ -502,17 +512,40 @@ def _parse_required_years(text):
     return 0.0
 
 
+def extract_candidate_years(candidate_experience):
+    return _calculate_total_years(candidate_experience)
+
+
+def extract_required_years(required_exp):
+    return _parse_required_years(required_exp)
+
+
 def calculate_experience_score(required_exp, candidate_experience):
     """Score experience: full marks if meets/exceeds, partial credit otherwise."""
-    required_years = _parse_required_years(required_exp)
-    actual_years = _calculate_total_years(candidate_experience)
+    required_years = extract_required_years(required_exp)
+    actual_years = extract_candidate_years(candidate_experience)
 
     if required_years == 0:
         return 100.0
     if actual_years >= required_years:
         return 100.0
 
-    return min(100.0, (actual_years / required_years) * 100.0)
+    gap_years = required_years - actual_years
+    ratio_score = min(100.0, (actual_years / required_years) * 100.0)
+
+    # Strongly penalize roles that clearly require much more experience.
+    if actual_years < 0.5 and required_years >= 2:
+        return 0.0
+    if gap_years >= 4:
+        return 0.0
+    if gap_years >= 3:
+        return min(15.0, ratio_score)
+    if gap_years >= 2:
+        return min(30.0, ratio_score)
+    if gap_years >= 1:
+        return min(55.0, ratio_score)
+
+    return min(85.0, ratio_score)
 
 
 # ─────────────────────────────────────────────

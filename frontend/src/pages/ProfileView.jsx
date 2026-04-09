@@ -27,12 +27,22 @@ import {
   createJobSeekerProfile,
   getJobRecommendations,
   getProfile,
+  updateProfile,
 } from "../services/api";
 import { getJobDestination, getJobKey, isExternalJob } from "../utils/job-utils";
 import {
   buildProfileInsights,
   normalizeProfileList,
 } from "../utils/profile-insights";
+
+const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
+
+const isIndiaDisplayLocation = (value = "") =>
+  String(value)
+    .split(/[,/;()|-]+/)
+    .map((part) => part.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim())
+    .filter(Boolean)
+    .some((part) => INDIA_LOCATION_PARTS.has(part));
 
 function ProfileMetric({ label, value }) {
   return (
@@ -66,7 +76,7 @@ function InfoRow({ icon, label, value, href }) {
             <ExternalLink className="size-3.5" />
           </a>
         ) : (
-          <p className="mt-1 text-sm text-text-primary break-words">
+          <p className="mt-1 text-sm text-text-primary wrap-break-word">
             {value || "Not added yet"}
           </p>
         )}
@@ -123,7 +133,7 @@ function QuickEditPanel({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={5}
-              className="input-field min-h-[130px]"
+              className="input-field min-h-32.5"
               placeholder={placeholder}
             />
           ) : (
@@ -233,6 +243,165 @@ function TimelineList({ icon, title, items, emptyText, getPrimary, getSecondary 
   );
 }
 
+function JobSeekerProfileCard({ personalInfo, user, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    name: personalInfo.name || user?.name || "",
+    email: personalInfo.email || user?.email || "",
+    phone: personalInfo.phone || "",
+    location: personalInfo.location || "",
+    linkedin: personalInfo.linkedin || "",
+    github: personalInfo.github || "",
+  });
+
+  useEffect(() => {
+    setDraft({
+      name: personalInfo.name || user?.name || "",
+      email: personalInfo.email || user?.email || "",
+      phone: personalInfo.phone || "",
+      location: personalInfo.location || "",
+      linkedin: personalInfo.linkedin || "",
+      github: personalInfo.github || "",
+    });
+  }, [personalInfo, user?.email, user?.name]);
+
+  const handleSubmit = async () => {
+    try {
+      setSaving(true);
+      await onSave(draft);
+      setEditing(false);
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to update current profile info");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="p-6 bg-white/90">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.16em] text-text-secondary font-semibold">
+            Quick actions
+          </p>
+          <h2 className="mt-2 text-xl font-semibold text-text-primary">
+            Keep your current profile info updated
+          </h2>
+        </div>
+        {!editing ? (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+            Edit current info
+          </Button>
+        ) : null}
+      </div>
+
+      {!editing ? (
+        <>
+          <div className="mt-5 space-y-4">
+            <InfoRow icon={<Mail className="size-4" />} label="Email" value={personalInfo.email || user?.email} />
+            <InfoRow icon={<Phone className="size-4" />} label="Phone" value={personalInfo.phone} />
+            <InfoRow icon={<MapPin className="size-4" />} label="Preferred location" value={personalInfo.location} />
+            <InfoRow
+              icon={<Linkedin className="size-4" />}
+              label="LinkedIn"
+              value={personalInfo.linkedin}
+              href={personalInfo.linkedin ? (personalInfo.linkedin.startsWith("http") ? personalInfo.linkedin : `https://${personalInfo.linkedin}`) : ""}
+            />
+            <InfoRow
+              icon={<Github className="size-4" />}
+              label="GitHub"
+              value={personalInfo.github}
+              href={personalInfo.github ? (personalInfo.github.startsWith("http") ? personalInfo.github : `https://${personalInfo.github}`) : ""}
+            />
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to="/profile/setup">
+              <Button>Edit full profile</Button>
+            </Link>
+            <Link to="/resume-parser">
+              <Button variant="secondary">Open resume parser</Button>
+            </Link>
+          </div>
+        </>
+      ) : (
+        <div className="mt-5 space-y-4">
+          <div className="grid gap-4">
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">Name</span>
+              <input
+                value={draft.name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
+                className="input-field"
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">Email</span>
+              <input value={draft.email} disabled className="input-field opacity-70 cursor-not-allowed" />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">Phone</span>
+              <input
+                value={draft.phone}
+                onChange={(e) => setDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                className="input-field"
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">Preferred location</span>
+              <input
+                value={draft.location}
+                onChange={(e) => setDraft((prev) => ({ ...prev, location: e.target.value }))}
+                className="input-field"
+                placeholder="Village, city, district, state"
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">LinkedIn</span>
+              <input
+                value={draft.linkedin}
+                onChange={(e) => setDraft((prev) => ({ ...prev, linkedin: e.target.value }))}
+                className="input-field"
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-semibold text-text-primary">GitHub</span>
+              <input
+                value={draft.github}
+                onChange={(e) => setDraft((prev) => ({ ...prev, github: e.target.value }))}
+                className="input-field"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={handleSubmit} isLoading={saving}>
+              Save current info
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDraft({
+                  name: personalInfo.name || user?.name || "",
+                  email: personalInfo.email || user?.email || "",
+                  phone: personalInfo.phone || "",
+                  location: personalInfo.location || "",
+                  linkedin: personalInfo.linkedin || "",
+                  github: personalInfo.github || "",
+                });
+                setEditing(false);
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function RecruiterProfile({ profile, onSave }) {
   const [draft, setDraft] = useState({
     name: profile?.name || "",
@@ -271,7 +440,7 @@ function RecruiterProfile({ profile, onSave }) {
 
   return (
     <div className="space-y-6">
-      <Card className="p-8 bg-gradient-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
+      <Card className="p-8 bg-linear-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
         <h1 className="font-display text-4xl text-text-primary">
           {profile?.name || "Company profile"}
         </h1>
@@ -307,7 +476,7 @@ function RecruiterProfile({ profile, onSave }) {
             value={draft.description}
             onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
             rows={6}
-            className="input-field min-h-[150px]"
+            className="input-field min-h-37.5"
           />
         </label>
 
@@ -356,7 +525,11 @@ export default function ProfileView() {
     try {
       setRecsLoading(true);
       const res = await getJobRecommendations();
-      setRecommendations(res.data?.external || []);
+      setRecommendations(
+        (res.data?.external || []).filter(
+          (job) => job?.remote || isIndiaDisplayLocation(job?.location || ""),
+        ),
+      );
     } catch (error) {
       console.error("Failed to fetch profile recommendations:", error);
     } finally {
@@ -385,7 +558,33 @@ export default function ProfileView() {
 
     await createJobSeekerProfile(nextProfile);
     await fetchProfile();
+    await fetchRecommendations();
     toast.success("Profile updated");
+  };
+
+  const savePersonalInfoPatch = async (draft) => {
+    const res = await updateProfile({
+      personal_info: {
+        name: draft.name.trim(),
+        email: personalInfo.email || user?.email || draft.email,
+        phone: draft.phone.trim(),
+        location: draft.location.trim(),
+        linkedin: draft.linkedin.trim(),
+        github: draft.github.trim(),
+        summary: personalInfo.summary || "",
+      },
+    });
+    if (res.data?.profile) {
+      setProfile(res.data.profile);
+    } else {
+      await fetchProfile();
+    }
+    try {
+      await fetchRecommendations();
+    } catch (error) {
+      console.error("Recommendations refresh failed after profile update:", error);
+    }
+    toast.success("Current profile info updated");
   };
 
   const saveCompanyPatch = async (patch) => {
@@ -436,7 +635,7 @@ export default function ProfileView() {
         </button>
 
         <Card className="overflow-hidden">
-          <div className="p-8 sm:p-10 bg-gradient-to-br from-[#f6f9ff] via-white to-[#eef8f4]">
+          <div className="p-8 sm:p-10 bg-linear-to-br from-[#f6f9ff] via-white to-[#eef8f4]">
             <div className="grid lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] gap-8">
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
@@ -465,44 +664,11 @@ export default function ProfileView() {
                 </div>
               </div>
 
-              <Card className="p-6 bg-white/90">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.16em] text-text-secondary font-semibold">
-                      Quick actions
-                    </p>
-                    <h2 className="mt-2 text-xl font-semibold text-text-primary">
-                      Keep your profile interview-ready
-                    </h2>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-4">
-                  <InfoRow icon={<Mail className="size-4" />} label="Email" value={personalInfo.email || user?.email} />
-                  <InfoRow icon={<Phone className="size-4" />} label="Phone" value={personalInfo.phone} />
-                  <InfoRow
-                    icon={<Linkedin className="size-4" />}
-                    label="LinkedIn"
-                    value={personalInfo.linkedin}
-                    href={personalInfo.linkedin ? (personalInfo.linkedin.startsWith("http") ? personalInfo.linkedin : `https://${personalInfo.linkedin}`) : ""}
-                  />
-                  <InfoRow
-                    icon={<Github className="size-4" />}
-                    label="GitHub"
-                    value={personalInfo.github}
-                    href={personalInfo.github ? (personalInfo.github.startsWith("http") ? personalInfo.github : `https://${personalInfo.github}`) : ""}
-                  />
-                </div>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link to="/profile/setup">
-                    <Button>Edit full profile</Button>
-                  </Link>
-                  <Link to="/resume-parser">
-                    <Button variant="secondary">Open resume parser</Button>
-                  </Link>
-                </div>
-              </Card>
+              <JobSeekerProfileCard
+                personalInfo={personalInfo}
+                user={user}
+                onSave={savePersonalInfoPatch}
+              />
             </div>
           </div>
         </Card>
@@ -558,7 +724,7 @@ export default function ProfileView() {
 
               <div className="mt-6 h-3 rounded-full bg-surface-2 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-700"
+                  className="h-full rounded-full bg-linear-to-r from-primary to-accent transition-all duration-700"
                   style={{ width: `${insights.completionScore}%` }}
                 />
               </div>

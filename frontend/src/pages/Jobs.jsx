@@ -32,6 +32,14 @@ import {
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const EXP_LEVELS = ["Entry Level", "1-3 yrs", "3+ yrs", "5+ yrs", "Lead / Manager"];
+const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
+
+const isIndiaDisplayLocation = (value = "") =>
+  String(value)
+    .split(/[,/;()|-]+/)
+    .map((part) => part.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim())
+    .filter(Boolean)
+    .some((part) => INDIA_LOCATION_PARTS.has(part));
 
 function timeAgo(dateStr) {
   if (!dateStr) return "Recently";
@@ -255,7 +263,11 @@ export default function Jobs() {
       setLoadingRecs(true);
       setRecError("");
       const res = await getJobRecommendations();
-      setRecommendations(res.data?.external || []);
+      setRecommendations(
+        (res.data?.external || []).filter(
+          (job) => job?.remote || isIndiaDisplayLocation(job?.location || ""),
+        ),
+      );
       setLastRefresh(new Date());
     } catch (error) {
       console.error("Failed to load recommendations:", error);
@@ -333,7 +345,7 @@ export default function Jobs() {
           </button>
 
           <Card className="overflow-hidden">
-            <div className="p-8 sm:p-10 bg-gradient-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
+            <div className="p-8 sm:p-10 bg-linear-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
               <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)] gap-8">
                 <div className="space-y-6">
                   <div>
@@ -361,13 +373,18 @@ export default function Jobs() {
                         />
                       </label>
                       <label className="rounded-2xl border border-border bg-white px-4 py-3 flex items-center gap-3">
-                        <MapPin className="size-4 text-text-secondary" />
-                        <input
-                          value={location}
-                          onChange={(e) => setLocation(e.target.value)}
-                          placeholder="Location"
-                          className="w-full bg-transparent outline-none text-text-primary"
-                        />
+                        <MapPin className="size-4 text-text-secondary self-start mt-1" />
+                        <div className="w-full">
+                          <input
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            placeholder="City or cities, e.g. Pune; Mumbai"
+                            className="w-full bg-transparent outline-none text-text-primary"
+                          />
+                          <p className="mt-1 text-xs text-text-tertiary">
+                            Use <span className="font-semibold">;</span> to search multiple cities.
+                          </p>
+                        </div>
                       </label>
                       <Button onClick={loadJobs} className="justify-center">
                         Search
