@@ -90,7 +90,7 @@ def _clean_list(value):
     if isinstance(value, list):
         items = value
     else:
-        items = re.split(r"[,|/]", str(value))
+        items = re.split(r"[,|;]", str(value))
     cleaned = []
     seen = set()
     for item in items:
@@ -144,6 +144,36 @@ def _parse_salary_range(record):
     return salary_text, salary_min, salary_max
 
 
+def _infer_remote_status(location_text, description_text):
+    combined_text = f"{location_text} {description_text}".lower()
+
+    negative_patterns = [
+        r"\bnot remote\b",
+        r"\bno remote\b",
+        r"\bnon remote\b",
+        r"\bwithout remote\b",
+        r"\bremote work unavailable\b",
+        r"\bremote not available\b",
+        r"\bon[- ]site only\b",
+        r"\bin office only\b",
+    ]
+    for pattern in negative_patterns:
+        if re.search(pattern, combined_text):
+            return False
+
+    positive_patterns = [
+        r"\bremote\b",
+        r"\bwork from home\b",
+        r"\bwfh\b",
+        r"\bhybrid\b",
+    ]
+    for pattern in positive_patterns:
+        if re.search(pattern, combined_text):
+            return True
+
+    return False
+
+
 def clean_job_record(record):
     salary_text, salary_min, salary_max = _parse_salary_range(record)
     cleaned = {
@@ -171,7 +201,10 @@ def clean_job_record(record):
     }
 
     if cleaned.get("remote") is None:
-        cleaned["remote"] = "remote" in cleaned["location"].lower() or "remote" in cleaned["description"].lower()
+        cleaned["remote"] = _infer_remote_status(
+            cleaned.get("location", ""),
+            cleaned.get("description", ""),
+        )
 
     return {key: value for key, value in cleaned.items() if not _is_empty(value)}
 

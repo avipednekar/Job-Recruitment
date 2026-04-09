@@ -123,8 +123,8 @@ The AI service now includes offline dataset utilities for collecting and
 normalizing external job descriptions:
 
 - `ai-service/job_data/jd_data_extractor.py` uses Selenium plus BeautifulSoup
-  to extract Glassdoor listing cards and, optionally, detailed job
-  descriptions.
+  to extract Glassdoor listing cards and detailed job descriptions by
+  default.
 - `ai-service/job_data/jd_data_cleaner.py` removes null-like values,
   normalizes text fields, converts salary/rating types, and keeps the scraped
   records consistent for downstream matching.
@@ -133,7 +133,7 @@ Example usage:
 
 ```bash
 cd ai-service
-python -m job_data.jd_data_extractor "https://www.glassdoor.com/Job/jobs.htm?sc.keyword=software%20engineer" raw_jobs.json --max-pages 2 --include-details
+python -m job_data.jd_data_extractor "https://www.glassdoor.com/Job/jobs.htm?sc.keyword=software%20engineer" raw_jobs.json --max-pages 2
 python -m job_data.jd_data_cleaner raw_jobs.json cleaned_jobs.json
 ```
 
@@ -143,6 +143,8 @@ Notes:
   often resolve the driver automatically.
 - Glassdoor changes markup frequently. The extractor includes multiple fallback
   selectors, but selector updates may still be needed over time.
+- Use `--skip-details` only when you explicitly want listing-card data without
+  full descriptions.
 - These tools are currently offline utilities and are not yet wired to a live
   backend route.
 

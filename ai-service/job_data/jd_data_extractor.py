@@ -6,7 +6,6 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
@@ -81,7 +80,8 @@ class GlassdoorJobExtractor:
 
             if page_number == max_pages - 1:
                 break
-            if not self._go_to_next_page():
+            current_signature = self._get_page_signature()
+            if not self._go_to_next_page(current_signature):
                 break
 
         return collected_jobs
@@ -145,7 +145,7 @@ class GlassdoorJobExtractor:
         self.driver.switch_to.new_window("tab")
         try:
             self.driver.get(detail_url)
-            time.sleep(self.pause_seconds)
+            self._wait_for_detail_panel()
             detail_soup = BeautifulSoup(self.driver.page_source, "html.parser")
             description = self._extract_description(detail_soup)
             metadata = self._extract_metadata(detail_soup)
@@ -174,7 +174,7 @@ class GlassdoorJobExtractor:
             "remote": "remote" in text.lower(),
         }
 
-    def _go_to_next_page(self):
+    def _go_to_next_page(self, previous_signature):
         for selector in self.NEXT_BUTTON_SELECTORS:
             buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
             for button in buttons:
@@ -185,9 +185,43 @@ class GlassdoorJobExtractor:
                 if disabled:
                     continue
                 self.driver.execute_script("arguments[0].click();", button)
-                time.sleep(self.pause_seconds)
+                self._wait_for_page_change(previous_signature)
                 return True
         return False
+
+    def _wait_for_detail_panel(self):
+        def _detail_loaded(driver):
+            for selector in self.DETAIL_PANEL_SELECTORS:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if any(element.text.strip() for element in elements):
+                    return True
+            return False
+
+        self.wait.until(_detail_loaded)
+        time.sleep(self.pause_seconds / 2)
+
+    def _wait_for_page_change(self, previous_signature):
+        def _page_changed(driver):
+            current_signature = self._get_page_signature()
+            return bool(current_signature and current_signature != previous_signature)
+
+        self.wait.until(_page_changed)
+        self._wait_for_listings()
+        time.sleep(self.pause_seconds / 2)
+
+    def _get_page_signature(self):
+        soup = BeautifulSoup(self.driver.page_source, "html.parser")
+        cards = self._select_cards(soup)
+        signatures = []
+
+        for card in cards[:3]:
+            title_node = self._select_first(card, self.TITLE_SELECTORS)
+            title = self._get_text(title_node)
+            href = self._get_attr(title_node, "href")
+            if title or href:
+                signatures.append(f"{title}|{href}")
+
+        return "||".join(signatures)
 
     def _select_first(self, parent, selectors):
         for selector in selectors:
@@ -238,7 +272,11 @@ def main():
     parser.add_argument("search_url", help="Glassdoor jobs search URL.")
     parser.add_argument("output_path", help="Path to write raw JSON records.")
     parser.add_argument("--max-pages", type=int, default=1, help="Number of listing pages to scan.")
-    parser.add_argument("--include-details", action="store_true", help="Open each job page and capture full description.")
+    parser.add_argument(
+        "--skip-details",
+        action="store_true",
+        help="Skip job-detail pages and keep only listing-card fields.",
+    )
     parser.add_argument("--show-browser", action="store_true", help="Run the browser in non-headless mode.")
     args = parser.parse_args()
 
@@ -248,7 +286,7 @@ def main():
         jobs = extractor.extract_jobs(
             args.search_url,
             max_pages=max(1, args.max_pages),
-            include_details=args.include_details,
+            include_details=not args.skip_details,
         )
     finally:
         driver.quit()
