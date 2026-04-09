@@ -186,16 +186,6 @@ const matchesRequestedLocation = (job, requestedLocation) => {
 export const fetchExternalJobs = async (req, res) => {
   try {
     const { q, location: requestedLocation, page = 1 } = req.query;
-    const apiKey = process.env.RAPIDAPI_KEY;
-
-    if (!apiKey) {
-      console.warn("RAPIDAPI_KEY not found. External jobs disabled.");
-      return res.json({
-        success: true,
-        jobs: [],
-        message: "External jobs disabled (missing API key)",
-      });
-    }
 
     let resolvedLocation = String(requestedLocation || "").trim();
 
@@ -206,8 +196,8 @@ export const fetchExternalJobs = async (req, res) => {
       resolvedLocation = candidate?.personal_info?.location?.trim() || "";
     }
 
-    const queryStr = buildIndiaScopedQuery(q, resolvedLocation);
-    const cacheKey = `${CACHE_VERSION}-${queryStr}-${resolvedLocation}-${page}`;
+    const queryStr = q || "software engineer";
+    const cacheKey = `${CACHE_VERSION}-localai-${queryStr}-${resolvedLocation}-${page}`;
 
     // Check cache
     if (cache.has(cacheKey)) {
@@ -222,40 +212,36 @@ export const fetchExternalJobs = async (req, res) => {
       cache.delete(cacheKey);
     }
 
-    const options = {
-      method: "GET",
-      url: "https://jsearch.p.rapidapi.com/search",
-      params: {
-        query: queryStr,
-        page: page.toString(),
-        num_pages: "1",
-      },
-      headers: {
-        "x-rapidapi-key": apiKey,
-        "x-rapidapi-host": "jsearch.p.rapidapi.com",
-      },
-    };
+    // Call the local AI Python microservice scraper instead of RapidAPI
+    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+    const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
+      query: queryStr,
+      location: resolvedLocation,
+      page: Number(page)
+    });
 
-    const response = await axios.request(options);
+    if (response.data && response.data.jobs) {
+      const scrapedJobs = response.data.jobs;
+      
+      // The Python microservice returns normalized fields
+      const formattedJobs = scrapedJobs.map((job, index) => {
+        const uniqueId = job.id || `${Date.now()}-${index}`;
 
-    if (response.data && response.data.data) {
-      // Map JSearch format to our component format
-      const formattedJobs = response.data.data
-        .filter((job) => isIndiaJob(job))
-        .filter((job) => matchesRequestedLocation(job, resolvedLocation))
-        .map((job) => ({
-          id: job.job_id,
-          title: job.job_title,
-          company: job.employer_name,
-          location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
-          logo: job.employer_logo,
-          employment_type: job.job_employment_type || "Full-time",
-          remote: job.job_is_remote,
-          description: job.job_description,
-          apply_link: job.job_apply_link,
-          source: "external",
-          postedAt: job.job_posted_at_datetime_utc,
-        }));
+        return {
+          _id: uniqueId,
+          id: uniqueId,
+          title: job.title,
+          company: job.company,
+          location: job.location,
+          logo: job.logo,
+          employment_type: job.employment_type || "Full-time",
+          remote: job.remote,
+          description: job.description,
+          apply_link: job.apply_link,
+          source: job.source || "external",
+          postedAt: job.postedAt,
+        };
+      });
 
       // Save to cache
       cache.set(cacheKey, {
@@ -272,11 +258,9 @@ export const fetchExternalJobs = async (req, res) => {
 
     res.json({ success: true, jobs: [] });
   } catch (error) {
-    if (error.response?.status === 429) {
-      console.warn("RapidAPI rate limit exceeded.");
-      return res.json({ success: true, jobs: [], error: "Rate limit exceeded" });
-    }
     console.error("External Jobs Fetch Error:", error.message);
     res.status(500).json({ error: "Failed to fetch external jobs" });
   }
 };
+
+

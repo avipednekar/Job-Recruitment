@@ -8,3 +8,5 @@ python-docx
 pydantic
 beautifulsoup4
 selenium
+pandas
+python-jobspy

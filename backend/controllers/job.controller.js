@@ -842,22 +842,14 @@ export const getJobRecommendations = async (req, res) => {
       const candidateYears = estimateCandidateYears(candidate);
       const inferredRole = inferRecommendationRole(candidate, candidateSkills);
       
-      if (query.trim() && process.env.RAPIDAPI_KEY) {
-        const externalResponse = await axios.get("https://jsearch.p.rapidapi.com/search", {
-          params: { query: query, num_pages: 1 },
-          headers: {
-            "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-            "x-rapidapi-host": "jsearch.p.rapidapi.com"
-          }
+      if (query.trim()) {
+        const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+        const externalResponse = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
+          query: query,
+          location: candidateLocation || "India",
+          page: 1
         });
-        externalJobs = externalResponse.data.data
-          .filter((job) => !exceedsCandidateExperience(job, candidateYears))
-          .filter((job) => isIndiaExternalJob({
-            job_country: job.job_country,
-            job_location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
-            location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
-          }))
-          .filter((job) => matchesCandidateLocation(job, candidateLocation))
+        externalJobs = (externalResponse.data.jobs || [])
           .map((job) => {
             const localRanking = scoreExternalJobLocally(
               job,
@@ -868,26 +860,22 @@ export const getJobRecommendations = async (req, res) => {
             );
 
             return {
-              _id: job.job_id,
-              id: job.job_id,
-              title: job.job_title,
-              company: job.employer_name,
-              location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", ") || "Remote",
-              description: job.job_description || "",
-              employment_type: job.job_employment_type?.replace(/_/g, " "),
-              remote: job.job_is_remote,
-              logo: job.employer_logo,
-              apply_link: job.job_apply_link,
-              external_url: job.job_apply_link,
-              postedAt: job.job_posted_at_datetime_utc,
-              salary_range: job.job_min_salary && job.job_max_salary
-                ? `${job.job_min_salary}-${job.job_max_salary}`
-                : "",
-              experience_level: job.job_required_experience?.required_experience_in_months
-                ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
-                : "",
+              _id: job.id,
+              id: job.id,
+              title: job.title,
+              company: job.company,
+              location: job.location || "Remote",
+              description: job.description || "",
+              employment_type: job.employment_type,
+              remote: job.remote,
+              logo: job.logo,
+              apply_link: job.apply_link,
+              external_url: job.apply_link,
+              postedAt: job.postedAt,
+              salary_range: "", // JobSpy rarely returns min/max natively structured
+              experience_level: "",
               skills: localRanking.inferredSkills,
-              source: "external",
+              source: job.source || "external",
               local_match_score: localRanking.score,
             };
           })
@@ -947,7 +935,7 @@ export const getJobRecommendations = async (req, res) => {
         }
       }
     } catch (err) {
-      console.error("External JSearch Error:", err.message);
+      console.error("External JobSpy Engine Error:", err.message);
       // Proceed without external jobs if it fails
     }
 

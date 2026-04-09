@@ -12,6 +12,7 @@ Endpoints:
     POST /recommend_jobs  Rank all jobs for a specific candidate
 """
 import os
+import sys
 import uuid
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -25,6 +26,12 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+
+base_dir = os.path.dirname(__file__)
+if base_dir not in sys.path:
+    sys.path.insert(0, base_dir)
+
+from scraper.job_scraper import fetch_jobs
 
 
 # ─────────────────────────────────────────────
@@ -121,6 +128,31 @@ def recommend_jobs():
     try:
         ranked_jobs = recommend_jobs_for_candidate(data["candidate_data"], data["jobs_list"])
         return jsonify({"success": True, "ranked_jobs": ranked_jobs})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────
+# 5. Scrape Jobs
+# ─────────────────────────────────────────────
+@app.route("/scrape_jobs", methods=["POST"])
+def scrape_external_jobs():
+    """Takes query, location, page and returns scraped jobs."""
+    data = request.json or {}
+    query = data.get("query", "")
+    location = data.get("location", "")
+    page = data.get("page", 1)
+
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+
+    page = max(1, page)
+
+    try:
+        jobs = fetch_jobs(query, location, page)
+        return jsonify({"success": True, "jobs": jobs})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
