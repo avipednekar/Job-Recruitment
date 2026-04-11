@@ -46,3 +46,4 @@ ai-service/uploads/
 /test_node_api.py
 /fix_job.py
 /fix_profile.py
+fix_job_search.py

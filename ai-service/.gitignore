@@ -10,3 +10,7 @@ uploads/
 
 # Logs
 *.log
+test_output.json
+.vscode
+test_scraper.py
+debug_parsed_data.json

@@ -9,6 +9,7 @@ import candidateRoutes from "./routes/candidate.routes.js";
 import applicationRoutes from "./routes/application.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import externalJobsRoutes from "./routes/external-jobs.routes.js";
+import locationRoutes from "./routes/location.routes.js";
 
 // Load env vars
 dotenv.config();
@@ -35,6 +36,7 @@ app.use("/api/external-jobs", externalJobsRoutes);
 app.use("/api/candidates", candidateRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/locations", locationRoutes);
 
 // Health check
 app.get("/", (req, res) => {

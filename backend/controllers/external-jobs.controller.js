@@ -6,53 +6,9 @@ import Candidate from "../models/Candidate.js";
 // We should cache aggressively.
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-const INDIA_LABEL = "india";
+import { INDIA_LABEL, INDIA_STATE_TERMS, LOCATION_PREFIX_PATTERN, INDIA_LOCATION_PARTS } from "../utils/constants.js";
 const CACHE_VERSION = "india-v2";
-const INDIA_STATE_TERMS = new Set([
-  "andhra pradesh",
-  "arunachal pradesh",
-  "assam",
-  "bihar",
-  "chhattisgarh",
-  "goa",
-  "gujarat",
-  "haryana",
-  "himachal pradesh",
-  "jharkhand",
-  "karnataka",
-  "kerala",
-  "madhya pradesh",
-  "maharashtra",
-  "manipur",
-  "meghalaya",
-  "mizoram",
-  "nagaland",
-  "odisha",
-  "orissa",
-  "punjab",
-  "rajasthan",
-  "sikkim",
-  "tamil nadu",
-  "telangana",
-  "tripura",
-  "uttar pradesh",
-  "uttarakhand",
-  "west bengal",
-  "andaman and nicobar islands",
-  "chandigarh",
-  "dadra and nagar haveli and daman and diu",
-  "daman and diu",
-  "delhi",
-  "national capital territory of delhi",
-  "jammu and kashmir",
-  "ladakh",
-  "lakshadweep",
-  "puducherry",
-]);
-const LOCATION_PREFIX_PATTERN =
-  /^(village|vill|post|po|tal|taluka|tehsil|dist|district|near|via)\s+/i;
 const LOCATION_GROUP_SPLIT_REGEX = /\s*(?:;|\||\r?\n)+\s*/;
-const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
 
 const normalizeText = (value = "") =>
   String(value)
