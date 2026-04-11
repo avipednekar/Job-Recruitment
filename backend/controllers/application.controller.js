@@ -1,10 +1,17 @@
 import Application from "../models/Application.js";
 import Candidate from "../models/Candidate.js";
 import Job from "../models/Job.js";
+import { isValidObjectId } from "mongoose";
 
 export const applyToJob = async (req, res) => {
   try {
     const { jobId } = req.params;
+
+    if (!isValidObjectId(jobId)) {
+      return res.status(400).json({
+        error: "Only internal platform jobs can be applied to here. Open external jobs on their source site.",
+      });
+    }
 
     const [job, candidate] = await Promise.all([
       Job.findById(jobId).lean(),

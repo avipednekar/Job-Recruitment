@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isValidObjectId } from "mongoose";
 import Job from "../models/Job.js";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
@@ -103,7 +104,15 @@ export const searchJobs = async (req, res) => {
    ────────────────────────────────────────────── */
 export const getJobById = async (req, res) => {
   try {
-    const job = await Job.findById(req.params.id)
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(404).json({
+        error: "Job not found. External jobs should be opened from their original listing.",
+      });
+    }
+
+    const job = await Job.findById(id)
       .select("-embedding")
       .populate("postedBy", "name email")
       .lean();

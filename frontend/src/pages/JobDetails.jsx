@@ -27,6 +27,10 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
+function isInternalJobId(value) {
+  return /^[a-f\d]{24}$/i.test(String(value || "").trim());
+}
+
 export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,6 +41,13 @@ export default function JobDetails() {
 
   useEffect(() => {
     const loadJob = async () => {
+      if (!isInternalJobId(id)) {
+        toast.error("External jobs should be opened from their original listing.");
+        setJob(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const res = await getJobById(id);
@@ -52,6 +63,11 @@ export default function JobDetails() {
   }, [id]);
 
   const handleApply = async () => {
+    if (!isInternalJobId(id)) {
+      toast.error("External jobs must be applied to on their original listing.");
+      return;
+    }
+
     if (!user) {
       navigate("/login");
       return;
