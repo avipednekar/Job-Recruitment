@@ -50,7 +50,7 @@ def parse_resume(file_path: str) -> dict:
         exp_entries = [{"title": "Experience Overview", "company": "Various", "description": sections["experience"][:2000]}]
     else:
         exp_entries = exp_data.get("entries", [])
-    
+
     parsed_data["experience"] = exp_entries
 
     # Optional sections
@@ -62,6 +62,8 @@ def parse_resume(file_path: str) -> dict:
         if not proj_data and sections["projects"].strip():
             proj_data = [{"name": "Projects Portfolio", "description": sections["projects"][:2000]}]
         parsed_data["projects"] = proj_data
+
+    if "certifications" in sections:
         raw_certs = sections["certifications"]
         certs = [
             line.strip() for line in raw_certs.split("\n")
@@ -73,7 +75,7 @@ def parse_resume(file_path: str) -> dict:
 
     if "categories" in sections:
         parsed_data["categories"] = sections["categories"]
-        
+
     # ------------- DEBUG DUMP -------------
     try:
         with open("debug_parsed_data.json", "w") as f:
