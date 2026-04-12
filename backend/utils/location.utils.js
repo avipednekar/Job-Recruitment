@@ -97,4 +97,4 @@ export const matchesCandidateLocation = (job, candidateLocation) => {
 };
 
 export const getCandidatePreferredLocation = (candidate) =>
-  candidate?.personal_info?.location?.trim() || "";
+  candidate?.location?.trim() || "";

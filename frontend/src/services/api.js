@@ -20,11 +20,16 @@ export const registerUser = (data) => API.post("/auth/register", data);
 export const logoutUser = () => API.post("/auth/logout");
 export const getMe = () => API.get("/auth/me");
 
-// Candidates / Resume
+// Resume upload (returns parsed data from AI service)
 export const uploadResume = (formData) =>
   API.post("/candidates/upload", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+
+// Profile — single upsert endpoint per role
+export const getProfile = () => API.get("/profile/me");
+export const saveJobSeekerProfile = (data) => API.put("/profile/job-seeker", data);
+export const saveCompanyProfile = (data) => API.put("/profile/company", data);
 
 // Jobs
 export const createJob = (data) => API.post("/jobs", data);
@@ -37,13 +42,5 @@ export const applyToJob = (jobId) => API.post(`/applications/${jobId}`);
 
 // External Jobs
 export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { params });
-
-// Profile
-export const getProfile = () => API.get("/profile/me");
-export const createJobSeekerProfile = (data) =>
-  API.post("/profile/job-seeker", data);
-export const createCompanyProfile = (data) =>
-  API.post("/profile/company", data);
-export const updateProfile = (data) => API.put("/profile/me", data);
 
 export default API;

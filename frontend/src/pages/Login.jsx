@@ -60,8 +60,7 @@ const Login = () => {
     setLoading(true);
     try {
       const data = await login(formData.email, formData.password);
-      toast.success("Welcome back!");
-      navigate(data.user.profileComplete ? "/resume-parser" : "/profile/setup");
+      navigate(data.user.profileComplete ? "/" : "/setup-profile");
     } catch (error) {
       toast.error(error.response?.data?.error || "Login failed");
     } finally {

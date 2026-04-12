@@ -31,7 +31,11 @@ const buildExternalJobText = (job) =>
   );
 
 export const getCandidateSkills = (candidate) =>
-  Array.isArray(candidate?.skills?.skills) ? candidate.skills.skills : [];
+  Array.isArray(candidate?.skills)
+    ? candidate.skills
+    : Array.isArray(candidate?.skills?.skills)
+      ? candidate.skills.skills  // legacy fallback
+      : [];
 
 export const estimateCandidateYears = (candidate) => {
   const experience = Array.isArray(candidate?.experience) ? candidate.experience : [];

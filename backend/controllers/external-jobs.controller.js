@@ -147,9 +147,9 @@ export const fetchExternalJobs = async (req, res) => {
 
     if (!resolvedLocation && req.user?.role === "job_seeker") {
       const candidate = await Candidate.findOne({ user: req.user.id })
-        .select("personal_info.location")
+        .select("location")
         .lean();
-      resolvedLocation = candidate?.personal_info?.location?.trim() || "";
+      resolvedLocation = candidate?.location?.trim() || "";
     }
 
     const queryStr = q || "software engineer";

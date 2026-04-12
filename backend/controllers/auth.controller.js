@@ -66,10 +66,12 @@ export const register = async (req, res) => {
       role: userRole,
     });
 
+    console.log("[AUTH] User registered:", user.email, "| role:", user.role);
+
     const token = generateToken(user);
     sendTokenResponse(res, 201, user, token);
   } catch (error) {
-    console.error("Register Error:", error.message);
+    console.error("[AUTH] Register Error:", error.message);
     if (error.code === 11000) {
       return res.status(400).json({ error: "Email already exists" });
     }
@@ -100,10 +102,12 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
+    console.log("[AUTH] User logged in:", user.email);
+
     const token = generateToken(user);
     sendTokenResponse(res, 200, user, token);
   } catch (error) {
-    console.error("Login Error:", error.message);
+    console.error("[AUTH] Login Error:", error.message);
     res.status(500).json({ error: "Login failed" });
   }
 };
@@ -132,8 +136,6 @@ export const getMe = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        phone: user.phone,
-        linkedin: user.linkedin,
         candidate: user.candidate,
         profileComplete: user.profileComplete || false,
         createdAt: user.createdAt,
