@@ -320,12 +320,29 @@ export const getJobRecommendations = async (req, res) => {
     // 2. Fetch all active internal jobs
     const internalJobs = await Job.find({ status: "active" }).lean();
     let rankedInternal = [];
+    const candidateSkills = getCandidateSkills(candidate);
+    const candidateLocation = getCandidatePreferredLocation(candidate);
+    const candidateYears = estimateCandidateYears(candidate);
+    const inferredRole = inferRecommendationRole(candidate, candidateSkills);
 
     console.log(`[Job Recs] Found ${internalJobs.length} active internal jobs. Requesting AI ranking...`);
 
     // 3. Ask Python AI to rank internal jobs
     if (internalJobs.length > 0) {
       try {
+        const internalLocalRankings = new Map(
+          internalJobs.map((job) => [
+            job._id.toString(),
+            scoreExternalJobLocally(
+              job,
+              candidateSkills,
+              candidateLocation,
+              candidateYears,
+              inferredRole,
+            ),
+          ]),
+        );
+
         const aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
           candidate_data: candidate,
           jobs_list: internalJobs,
@@ -335,11 +352,25 @@ export const getJobRecommendations = async (req, res) => {
         if (aiResponse.data.success && aiResponse.data.ranked_jobs) {
           rankedInternal = aiResponse.data.ranked_jobs.map(ranked => {
             const fullJob = internalJobs.find(j => j._id.toString() === ranked.job_id);
+            const localRanking = fullJob ? internalLocalRankings.get(fullJob._id.toString()) : null;
+            if (!fullJob || localRanking?.excluded) {
+              return null;
+            }
+            const blendedScore = (ranked.overall_match_score * 0.65) + ((localRanking?.score || 0) * 0.35);
             return {
               ...fullJob,
-              match_metrics: ranked
+              match_metrics: {
+                ...ranked,
+                overall_match_score: Math.round(blendedScore * 100) / 100,
+              },
             };
-          });
+          })
+            .filter(Boolean)
+            .sort(
+              (left, right) =>
+                (right.match_metrics?.overall_match_score || 0) -
+                (left.match_metrics?.overall_match_score || 0),
+            );
         }
       } catch (err) {
         console.error("AI Recommendation Error:", err.message);
@@ -352,10 +383,6 @@ export const getJobRecommendations = async (req, res) => {
     let externalJobs = [];
     try {
       const query = buildExternalJobQuery(candidate);
-      const candidateSkills = getCandidateSkills(candidate);
-      const candidateLocation = getCandidatePreferredLocation(candidate);
-      const candidateYears = estimateCandidateYears(candidate);
-      const inferredRole = inferRecommendationRole(candidate, candidateSkills);
       
       if (query.trim()) {
         const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
@@ -392,8 +419,10 @@ export const getJobRecommendations = async (req, res) => {
               skills: localRanking.inferredSkills,
               source: job.source || "external",
               local_match_score: localRanking.score,
+              recommendation_excluded: Boolean(localRanking.excluded),
             };
           })
+          .filter((job) => !job.recommendation_excluded)
           .sort((left, right) => (right.local_match_score || 0) - (left.local_match_score || 0)) || [];
 
         if (externalJobs.length > 0) {

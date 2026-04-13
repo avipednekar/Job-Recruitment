@@ -3,6 +3,7 @@ import {
   SENIOR_TITLE_TERMS,
   GENERIC_SEARCH_SKILLS,
   COMMON_TECH_SKILLS,
+  NON_TECH_TITLE_TERMS,
 } from "./constants.js";
 
 import {
@@ -29,6 +30,82 @@ const buildExternalJobText = (job) =>
       .filter(Boolean)
       .join(" "),
   );
+
+const FRONTEND_ROLE_KEYWORDS = [
+  "frontend",
+  "front end",
+  "ui",
+  "web developer",
+  "react",
+  "next",
+  "javascript",
+  "typescript",
+];
+
+const BACKEND_ROLE_KEYWORDS = [
+  "backend",
+  "back end",
+  "api",
+  "server",
+  "node",
+  "express",
+  "java",
+  "python",
+  "django",
+  "spring",
+];
+
+const FULLSTACK_ROLE_KEYWORDS = [
+  "full stack",
+  "fullstack",
+  "mern",
+  "mean",
+  "software engineer",
+  "software developer",
+  "web developer",
+  ...FRONTEND_ROLE_KEYWORDS,
+  ...BACKEND_ROLE_KEYWORDS,
+];
+
+const DATA_ROLE_KEYWORDS = [
+  "data analyst",
+  "analytics",
+  "business intelligence",
+  "bi",
+  "reporting",
+  "sql",
+  "tableau",
+  "power bi",
+  "excel",
+];
+
+const DEVOPS_ROLE_KEYWORDS = [
+  "devops",
+  "platform",
+  "cloud",
+  "sre",
+  "aws",
+  "azure",
+  "gcp",
+  "terraform",
+  "kubernetes",
+  "docker",
+];
+
+const SOFTWARE_ROLE_KEYWORDS = [
+  "software engineer",
+  "software developer",
+  "developer",
+  "engineer",
+  "programmer",
+];
+
+const TECH_TITLE_TERMS = uniqueValues([
+  ...FULLSTACK_ROLE_KEYWORDS,
+  ...DATA_ROLE_KEYWORDS,
+  ...DEVOPS_ROLE_KEYWORDS,
+  ...SOFTWARE_ROLE_KEYWORDS,
+]);
 
 export const getCandidateSkills = (candidate) =>
   Array.isArray(candidate?.skills)
@@ -143,6 +220,27 @@ export const exceedsCandidateExperience = (job, candidateYears) => {
 
 export const inferRecommendationRole = (candidate, skills = []) => {
   const normalizedSkills = skills.map((skill) => normalizeText(skill));
+  const latestRole = normalizeText(
+    candidate?.experience?.[0]?.title ||
+    candidate?.experience?.[0]?.role ||
+    candidate?.experience?.[0]?.position ||
+    "",
+  );
+
+  const hasFrontend = normalizedSkills.some((skill) =>
+    ["react", "react js", "react.js", "javascript", "typescript", "html", "css", "next.js", "nextjs"].includes(skill),
+  );
+  const hasBackend = normalizedSkills.some((skill) =>
+    ["node.js", "nodejs", "node js", "express.js", "express", "mongodb", "mysql", "postgresql", "java", "python", "rest api", "restful"].includes(skill),
+  );
+
+  if (latestRole.includes("full stack") || latestRole.includes("fullstack")) {
+    return "Full Stack Developer";
+  }
+
+  if (hasFrontend && hasBackend) {
+    return "Full Stack Developer";
+  }
 
   if (normalizedSkills.some((skill) => ["pytorch", "llms", "machine learning", "ml", "ai"].includes(skill))) {
     return "Machine Learning Engineer";
@@ -164,13 +262,12 @@ export const inferRecommendationRole = (candidate, skills = []) => {
     return "Software Engineer";
   }
 
-  const latestRole =
+  return (
     candidate?.experience?.[0]?.title ||
     candidate?.experience?.[0]?.role ||
     candidate?.experience?.[0]?.position ||
-    "";
-
-  return latestRole || "Software Engineer";
+    "Software Engineer"
+  );
 };
 
 const pickSearchSkills = (skills = [], limit = 3) =>
@@ -206,18 +303,13 @@ const extractProjectKeywords = (projects = [], limit = 2) => {
 export const buildExternalJobQuery = (candidate) => {
   const skills = getCandidateSkills(candidate);
   const role = inferRecommendationRole(candidate, skills);
-  const topSkills = pickSearchSkills(skills, 3);
-  const projectKeywords = extractProjectKeywords(candidate?.projects || [], 1);
-  const location = getCandidatePreferredLocation(candidate);
+  const topSkills = pickSearchSkills(skills, 2);
   const seniority = inferCandidateSeniority(candidate);
 
   return uniqueValues([
-    seniority,
+    ["fresher", "entry level", "junior"].includes(seniority) ? seniority : "",
     role,
     ...topSkills,
-    ...projectKeywords,
-    ...resolveSearchLocationTerms(location),
-    "India",
   ]).join(" ");
 };
 
@@ -251,13 +343,42 @@ export const scoreExternalJobLocally = (
   );
   const skillScore = inferredSkills.length
     ? (matchedSkills.length / inferredSkills.length) * 100
-    : 35;
+    : 15;
 
-  const roleTerms = normalizeText(inferredRole)
-    .split(" ")
-    .filter((token) => token.length >= 3);
-  const roleMatches = roleTerms.filter((token) => titleText.includes(token) || jobText.includes(token));
-  const roleScore = roleMatches.length ? Math.min(100, roleMatches.length * 35) : 20;
+  const inferredRoleText = normalizeText(inferredRole);
+  let roleKeywords = SOFTWARE_ROLE_KEYWORDS;
+  if (inferredRoleText.includes("full stack") || inferredRoleText.includes("fullstack")) {
+    roleKeywords = FULLSTACK_ROLE_KEYWORDS;
+  } else if (inferredRoleText.includes("front")) {
+    roleKeywords = FRONTEND_ROLE_KEYWORDS;
+  } else if (inferredRoleText.includes("data")) {
+    roleKeywords = DATA_ROLE_KEYWORDS;
+  } else if (inferredRoleText.includes("devops") || inferredRoleText.includes("cloud")) {
+    roleKeywords = DEVOPS_ROLE_KEYWORDS;
+  }
+
+  const roleMatches = roleKeywords.filter((token) => titleText.includes(normalizeText(token)));
+  const roleScore = roleMatches.length ? Math.min(100, 45 + (roleMatches.length * 18)) : 0;
+
+  const hasNonTechTitle = hasAnyKeyword(titleText, NON_TECH_TITLE_TERMS);
+  const hasTechTitle = hasAnyKeyword(titleText, TECH_TITLE_TERMS);
+  if (hasNonTechTitle && !hasTechTitle) {
+    return {
+      score: 0,
+      inferredSkills,
+      excluded: true,
+      reason: "non_tech_title",
+    };
+  }
+
+  if (roleScore === 0 && matchedSkills.length === 0) {
+    return {
+      score: 0,
+      inferredSkills,
+      excluded: true,
+      reason: "no_role_or_skill_overlap",
+    };
+  }
 
   const locationScore = matchesCandidateLocation(job, candidateLocation)
     ? 100
@@ -284,16 +405,31 @@ export const scoreExternalJobLocally = (
     }
   }
 
-  const localScore = (
-    (skillScore * 0.34) +
-    (roleScore * 0.18) +
-    (locationScore * 0.16) +
-    (experienceFitScore * 0.20) +
-    (careerStageScore * 0.12)
+  let localScore = (
+    (skillScore * 0.32) +
+    (roleScore * 0.30) +
+    (locationScore * 0.14) +
+    (experienceFitScore * 0.16) +
+    (careerStageScore * 0.08)
   );
+
+  if (roleScore === 0) {
+    localScore *= 0.35;
+  }
+
+  if (matchedSkills.length === 0 && skillScore < 25) {
+    localScore *= 0.45;
+  }
+
+  if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 2) {
+    localScore *= 0.4;
+  }
+
+  const excluded = localScore < 28;
 
   return {
     score: Math.round(localScore * 100) / 100,
     inferredSkills,
+    excluded,
   };
 };

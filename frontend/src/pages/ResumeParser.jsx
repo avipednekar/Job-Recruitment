@@ -207,7 +207,7 @@ const ResumeParser = () => {
                         </div>
                         <div className="h-2 rounded-full bg-surface-lighter overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-primary-strong to-accent transition-all duration-700"
+                            className="h-full rounded-full bg-linear-to-r from-primary-strong to-accent transition-all duration-700"
                             style={{ width: `${parsedData.skills.confidence_score * 100}%` }}
                           />
                         </div>

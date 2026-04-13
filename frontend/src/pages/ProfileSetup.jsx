@@ -60,7 +60,7 @@ export function JobSeekerProfileForm({ data, onChange }) {
         <div className="mt-4 space-y-2">
           <span className="text-sm font-semibold text-text-primary">Professional Summary</span>
           <textarea
-            className="input-field min-h-[100px] resize-y"
+            className="input-field min-h-25 resize-y"
             value={data.summary}
             onChange={set("summary")}
             placeholder="A brief summary about your experience and what you're looking for..."
@@ -345,7 +345,7 @@ export default function ProfileSetup() {
                   <InputField id="c-location" label="Location" value={companyForm.location} onChange={cSet("location")} placeholder="Mumbai, India" icon={<HiLocationMarker className="size-5" />} />
                   <div className="space-y-2">
                     <span className="text-sm font-semibold text-text-primary">Description</span>
-                    <textarea className="input-field min-h-[120px] resize-y" value={companyForm.description} onChange={cSet("description")} placeholder="Tell candidates about your company..." rows={4} />
+                    <textarea className="input-field min-h-30 resize-y" value={companyForm.description} onChange={cSet("description")} placeholder="Tell candidates about your company..." rows={4} />
                   </div>
                 </div>
                 <div className="flex justify-end mt-8">

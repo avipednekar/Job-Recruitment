@@ -127,3 +127,26 @@ export const SENIOR_TITLE_TERMS = [
   "principal",
   "head",
 ];
+
+export const NON_TECH_TITLE_TERMS = [
+  "sales",
+  "business development",
+  "account executive",
+  "account manager",
+  "customer support",
+  "customer success",
+  "recruiter",
+  "talent acquisition",
+  "hr",
+  "human resources",
+  "marketing",
+  "seo",
+  "finance",
+  "accountant",
+  "operations manager",
+  "store manager",
+  "teacher",
+  "trainer",
+  "counselor",
+  "nurse",
+];

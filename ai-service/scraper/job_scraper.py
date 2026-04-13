@@ -1,64 +1,31 @@
 import traceback
+
 import pandas as pd
 from jobspy import scrape_jobs
 
 
-# Sites that reliably work for India-based job searches.
-# LinkedIn: works consistently, broad coverage.
-# Indeed:   works with country_indeed="India", good for India-specific roles.
-# Naukri:   blocked by recaptcha (406) — excluded.
-# Glassdoor/Google: unreliable API responses — excluded.
+# Scrape each source independently so one weak source does not suppress the others.
 PRIMARY_SITES = ["linkedin", "indeed"]
-FALLBACK_SITES = ["linkedin"]  # if Indeed fails, at least get LinkedIn
+RESULTS_PER_SITE = 12
 
 
-def _scrape_with_fallback(query, location, results_wanted, offset):
-    """
-    Try scraping all PRIMARY_SITES first.
-    If that fails entirely, try FALLBACK_SITES one at a time.
-    Returns a DataFrame (possibly empty).
-    """
-    # Attempt 1: all primary sites together
-    try:
-        df = scrape_jobs(
-            site_name=PRIMARY_SITES,
-            search_term=query,
-            location=location,
-            results_wanted=results_wanted,
-            offset=offset,
-            country_indeed="India",
-            linkedin_fetch_description=True,
-            hours_old=72,
-            description_format="markdown",
-            verbose=1,
-        )
-        if not df.empty:
-            return df
-    except Exception as e:
-        print(f"[JobScraper] Primary scrape failed: {e}")
+def _scrape_site(site, query, location, results_wanted, offset):
+    site_args = {
+        "site_name": [site],
+        "search_term": query,
+        "location": location,
+        "results_wanted": results_wanted,
+        "offset": offset,
+        "linkedin_fetch_description": True,
+        "hours_old": 168,
+        "description_format": "markdown",
+        "verbose": 1,
+    }
 
-    # Attempt 2: try each fallback site individually
-    for site in FALLBACK_SITES:
-        try:
-            print(f"[JobScraper] Attempting fallback with {site}...")
-            df = scrape_jobs(
-                site_name=[site],
-                search_term=query,
-                location=location,
-                results_wanted=results_wanted,
-                offset=offset,
-                country_indeed="India",
-                linkedin_fetch_description=True,
-                hours_old=72,
-                description_format="markdown",
-                verbose=1,
-            )
-            if not df.empty:
-                return df
-        except Exception as e:
-            print(f"[JobScraper] Fallback {site} failed: {e}")
+    if site == "indeed":
+        site_args["country_indeed"] = "India"
 
-    return pd.DataFrame()
+    return scrape_jobs(**site_args)
 
 
 def _safe_str(value):
@@ -73,10 +40,9 @@ def _build_location(row):
     loc = _safe_str(row.get("location"))
     if loc:
         return loc
-    # Fallback: piece together from city/state if present
     city = _safe_str(row.get("city"))
     state = _safe_str(row.get("state"))
-    parts = [p for p in [city, state] if p]
+    parts = [part for part in [city, state] if part]
     return ", ".join(parts) if parts else ""
 
 
@@ -107,52 +73,75 @@ def _extract_skills(row):
     if isinstance(skills, list):
         return skills
     if isinstance(skills, str) and skills.strip():
-        return [s.strip() for s in skills.split(",") if s.strip()]
+        return [skill.strip() for skill in skills.split(",") if skill.strip()]
     return []
+
+
+def _row_key(row):
+    return (
+        _safe_str(row.get("job_url")).strip().lower(),
+        _safe_str(row.get("title")).strip().lower(),
+        _safe_str(row.get("company")).strip().lower(),
+        _safe_str(row.get("location")).strip().lower(),
+    )
 
 
 def fetch_jobs(query, location, page=1):
     """
-    Scrapes jobs from LinkedIn and Indeed using python-jobspy.
-    Returns a list of normalized dictionaries with job details.
+    Scrape jobs from LinkedIn and Indeed using python-jobspy.
+    Each site is queried independently, then the results are merged and deduped.
     """
     try:
-        results_wanted = 15
-        offset = (page - 1) * results_wanted
+        offset = max(page - 1, 0) * RESULTS_PER_SITE
+        search_term = (query or "").strip() or "software engineer"
+        search_location = (location or "").strip() or "India"
 
-        search_term = f"{query} {location}".strip() if location else query.strip()
+        per_site_frames = []
+        seen_sites = []
 
-        jobs_df = _scrape_with_fallback(
-            query=search_term,
-            location=location or "India",
-            results_wanted=results_wanted,
-            offset=offset,
-        )
+        for site in PRIMARY_SITES:
+            try:
+                df = _scrape_site(
+                    site=site,
+                    query=search_term,
+                    location=search_location,
+                    results_wanted=RESULTS_PER_SITE,
+                    offset=offset,
+                )
+                if df is not None and not df.empty:
+                    per_site_frames.append(df)
+                    seen_sites.append(site)
+                    print(f"[JobScraper] {site} returned {len(df)} rows")
+                else:
+                    print(f"[JobScraper] {site} returned no rows")
+            except Exception as site_err:
+                print(f"[JobScraper] {site} scrape failed: {site_err}")
 
-        if jobs_df.empty:
+        if not per_site_frames:
             print("[JobScraper] No jobs returned from any source")
             return []
 
-        # Convert NaN to None for safe access
+        jobs_df = pd.concat(per_site_frames, ignore_index=True)
         jobs_df = jobs_df.where(pd.notna(jobs_df), None)
 
         jobs_list = []
+        seen_keys = set()
         for _, row in jobs_df.iterrows():
             try:
-                location_str = _build_location(row)
-                salary_range = _build_salary_range(row)
-                skills = _extract_skills(row)
+                key = _row_key(row)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
 
-                # Strip excessively long descriptions for the API response
                 description = _safe_str(row.get("description"))
                 if len(description) > 3000:
                     description = description[:3000] + "..."
 
-                job = {
-                    "id": _safe_str(row.get("id")),
+                jobs_list.append({
+                    "id": _safe_str(row.get("id")) or _safe_str(row.get("job_url")),
                     "title": _safe_str(row.get("title")),
                     "company": _safe_str(row.get("company")),
-                    "location": location_str,
+                    "location": _build_location(row),
                     "logo": _safe_str(row.get("company_logo")),
                     "employment_type": _safe_str(row.get("job_type")) or "Full-time",
                     "remote": bool(row.get("is_remote", False)),
@@ -160,20 +149,18 @@ def fetch_jobs(query, location, page=1):
                     "apply_link": _safe_str(row.get("job_url")),
                     "source": _safe_str(row.get("site")) or "external",
                     "postedAt": _safe_str(row.get("date_posted")) or None,
-                    "salary_range": salary_range,
+                    "salary_range": _build_salary_range(row),
                     "job_level": _safe_str(row.get("job_level")),
-                    "skills": skills,
+                    "skills": _extract_skills(row),
                     "company_url": _safe_str(row.get("company_url")),
-                }
-                jobs_list.append(job)
+                })
             except Exception as row_err:
                 print(f"[JobScraper] Skipping malformed row: {row_err}")
-                continue
 
-        print(f"[JobScraper] Returning {len(jobs_list)} jobs from {jobs_df['site'].unique().tolist() if 'site' in jobs_df.columns else 'unknown'}")
+        print(f"[JobScraper] Returning {len(jobs_list)} jobs from sites: {seen_sites}")
         return jobs_list
 
-    except Exception as e:
-        print(f"[JobScraper] Fatal error: {e}")
+    except Exception as error:
+        print(f"[JobScraper] Fatal error: {error}")
         traceback.print_exc()
         raise
