@@ -43,11 +43,17 @@ def parse_resume(file_path: str) -> dict:
     edu_data = extract_education(sections.get("education", cleaned_text))
     parsed_data["education"] = edu_data.get("entries", [])
 
-    # Extract Experience (with fallback if regex fails but section was found)
-    exp_text = sections.get("experience", cleaned_text)
+    # Extract Experience only from the experience section.
+    # Falling back to the whole resume creates false positives on resumes
+    # that have education/projects but no real work-experience section.
+    exp_text = sections.get("experience", "")
     exp_data = extract_experience(exp_text)
     if not exp_data.get("entries") and "experience" in sections:
-        exp_entries = [{"title": "Experience Overview", "company": "Various", "description": sections["experience"][:2000]}]
+        section_text = sections["experience"].strip()
+        if len(section_text.split()) >= 5:
+            exp_entries = [{"title": "Experience Overview", "company": "Various", "description": section_text[:2000]}]
+        else:
+            exp_entries = []
     else:
         exp_entries = exp_data.get("entries", [])
 

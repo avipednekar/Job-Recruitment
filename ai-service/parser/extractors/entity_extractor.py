@@ -23,6 +23,24 @@ INDIA_LOCATION_KEYWORDS = {
     "rajasthan", "uttar pradesh", "madhya pradesh", "west bengal",
 }
 
+US_STATE_KEYWORDS = {
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+    "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa",
+    "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan",
+    "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina",
+    "north dakota", "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island",
+    "south carolina", "south dakota", "tennessee", "texas", "utah", "vermont",
+    "virginia", "washington", "west virginia", "wisconsin", "wyoming",
+}
+
+US_STATE_ABBREVIATIONS = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN",
+    "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV",
+    "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN",
+    "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+}
+
 INSTITUTION_KEYWORDS = {
     "college", "university", "institute", "school", "campus", "academy",
     "polytechnic", "faculty", "department", "education", "engineering college",
@@ -60,7 +78,27 @@ def extract_name(text):
     first_lines = text.split("\n")[:10]
     top_text = "\n".join(first_lines)
 
-    # Strategy 1: spaCy NER
+    # Strategy 1: prefer the first strong-looking line near the top.
+    for idx, line in enumerate(first_lines[:4]):
+        line = line.strip()
+        if not line:
+            continue
+
+        lowered = line.lower()
+        if any(skip in lowered for skip in [
+            "http", "www", "@", "|", "linkedin", "github", "summary",
+            "experience", "education", "skills",
+        ]):
+            continue
+        if any(char.isdigit() for char in line):
+            continue
+
+        words = line.split()
+        if 2 <= len(words) <= 4 and all(word.replace(".", "").isalpha() for word in words):
+            if idx == 0 or line.isupper() or all(word[:1].isupper() for word in words):
+                return line
+
+    # Strategy 2: spaCy NER
     nlp = _get_nlp()
     if nlp is not None:
         doc = nlp(top_text)
@@ -78,7 +116,7 @@ def extract_name(text):
                 if 2 <= len(words) <= 4 and all(w.isalpha() for w in words):
                     return name
 
-    # Strategy 2: Heuristic - look for a 2-4 word all-alpha line
+    # Strategy 3: Heuristic - look for a 2-4 word all-alpha line
     for line in first_lines:
         line = line.strip()
         if not line:
@@ -142,7 +180,12 @@ def _clean_location_text(value):
     if not value:
         return None
 
-    cleaned = re.sub(r"\s+", " ", str(value)).strip(" ,|-")
+    cleaned = re.sub(r"(https?://\S+|www\.\S+|linkedin\.com/\S+|github\.com/\S+)", "", str(value), flags=re.IGNORECASE)
+    cleaned = re.sub(EMAIL_REGEX, "", cleaned)
+    cleaned = re.sub(r"\+?\d[\d\s().\-]{7,}\d", "", cleaned)
+    cleaned = re.sub(r"\b\d{4,6}\b", "", cleaned)
+    cleaned = cleaned.replace("•", "|")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,|-")
     if not cleaned:
         return None
 
@@ -157,6 +200,60 @@ def _clean_location_text(value):
     return cleaned
 
 
+def _normalize_location_segment(value):
+    cleaned = _clean_location_text(value)
+    if not cleaned:
+        return None
+
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+    filtered = []
+    for part in parts:
+        if re.fullmatch(r"\d{4,6}", part):
+            continue
+        if part.upper() == "IN" and filtered:
+            continue
+        filtered.append(part)
+
+    if not filtered:
+        return None
+
+    if len(filtered) >= 2:
+        last = filtered[-1]
+        last_lower = last.lower()
+        if (
+            last_lower in INDIA_LOCATION_KEYWORDS
+            or last_lower in US_STATE_KEYWORDS
+            or last.upper() in US_STATE_ABBREVIATIONS
+        ):
+            prev = filtered[-2]
+            if prev and not _looks_like_institution(prev):
+                return f"{prev}, {last}"
+
+    if _looks_like_institution(filtered[-1]):
+        return None
+
+    return ", ".join(filtered[-2:]) if len(filtered) >= 2 else filtered[0]
+
+
+def _contains_location_anchor(value):
+    cleaned = _clean_location_text(value)
+    if not cleaned:
+        return False
+
+    lowered = cleaned.lower()
+    if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS):
+        return True
+
+    if any(keyword in lowered for keyword in US_STATE_KEYWORDS):
+        return True
+
+    parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+    if len(parts) >= 2 and parts[-1].upper() in US_STATE_ABBREVIATIONS:
+        return True
+
+    return False
+
+
 def _looks_like_institution(value):
     cleaned = _clean_location_text(value)
     if not cleaned:
@@ -167,9 +264,13 @@ def _looks_like_institution(value):
 
 
 def _extract_location_fragment(value):
-    cleaned = _clean_location_text(value)
+    normalized = _normalize_location_segment(value)
+    cleaned = _clean_location_text(normalized or value)
     if not cleaned:
         return None
+
+    if normalized and _contains_location_anchor(normalized):
+        return normalized
 
     parts = [part.strip() for part in re.split(r"[,|;/()-]+", cleaned) if part.strip()]
     if not parts:
@@ -187,13 +288,15 @@ def _extract_location_fragment(value):
                 break
             continue
 
-        if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS):
+        if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS) or lowered in US_STATE_KEYWORDS or part_clean.upper() in US_STATE_ABBREVIATIONS:
             collected.insert(0, part_clean)
             if len(collected) >= 2:
                 break
             continue
 
         if collected:
+            if len(collected) == 1 and re.fullmatch(r"[A-Za-z .]{2,40}", part_clean):
+                collected.insert(0, part_clean)
             break
 
     if collected:
@@ -206,15 +309,19 @@ def _extract_location_fragment(value):
 
 
 def _looks_like_location(value):
-    cleaned = _extract_location_fragment(value)
+    cleaned = _clean_location_text(_extract_location_fragment(value))
     if not cleaned:
         return False
 
-    lowered = cleaned.lower()
-    if any(keyword in lowered for keyword in INDIA_LOCATION_KEYWORDS):
+    if _contains_location_anchor(cleaned):
         return True
 
-    if "," in cleaned and len(cleaned.split()) <= 6:
+    words = [word for word in re.split(r"\s+", cleaned) if word]
+    if "," in cleaned and 2 <= len(words) <= 5 and all(
+        word[0].isupper() or word.upper() in US_STATE_ABBREVIATIONS
+        for word in words
+        if word[0].isalnum()
+    ):
         return True
 
     return False
@@ -226,7 +333,7 @@ def extract_location(text):
     Prefers explicit labels such as "Location: Pune, India", then falls back
     to short top-of-resume lines that look like Indian city/state strings.
     """
-    first_lines = [line.strip() for line in text.split("\n")[:20] if line.strip()]
+    first_lines = [line.strip() for line in text.split("\n")[:8] if line.strip()]
     top_text = "\n".join(first_lines)
 
     label_match = re.search(LOCATION_LABEL_REGEX, top_text)
@@ -236,8 +343,10 @@ def extract_location(text):
             return labeled_location
 
     for line in first_lines:
-        if any(skip in line.lower() for skip in ["email", "phone", "linkedin", "github", "portfolio"]):
-            continue
+        for segment in re.split(r"[|•]", line):
+            candidate = _extract_location_fragment(segment)
+            if _looks_like_location(candidate):
+                return candidate
 
         if _looks_like_location(line):
             return _extract_location_fragment(line)

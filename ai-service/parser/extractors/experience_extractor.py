@@ -1,63 +1,86 @@
 import re
+
 from parser.config import JOB_TITLE_KEYWORDS
 
 
 def extract_experience(text):
     """
     Extract work experience entries from text.
-    Each entry contains a job title, optional company, and duration.
+    Handles both:
+    - title -> company -> duration
+    - company -> duration -> title
     """
     entries = []
     durations = _extract_durations(text)
     lines = text.split("\n")
     current_entry = None
+    pending_company = None
+    pending_duration = None
 
     for i, line in enumerate(lines):
         stripped = line.strip()
         if not stripped:
             continue
 
-        # Check if this line contains a job title keyword
-        if _is_job_title_line(stripped):
-            # Save the previous entry if it exists
+        if _looks_like_company_line(stripped) and _next_job_title_within(lines, i, 4):
             if current_entry and current_entry.get("title"):
-                entries.append(current_entry)
-            
-            clean_title, inline_duration = _strip_inline_duration(stripped)
-            current_entry = {"title": clean_title, "description": ""}
-            
-            # Context around the title
-            context = _get_context(lines, i, window=3)
+                entries.append(_finalize_entry(current_entry))
+                current_entry = None
+            pending_company = stripped
+            pending_duration = None
+            continue
 
-            company = _extract_company(lines, i)
+        if _is_duration_line(stripped) and current_entry is None and _next_job_title_within(lines, i, 2):
+            pending_duration = stripped
+            continue
+
+        if _is_job_title_line(stripped):
+            if current_entry and current_entry.get("title"):
+                entries.append(_finalize_entry(current_entry))
+
+            clean_title, inline_duration = _strip_inline_duration(stripped)
+            current_entry = {"title": _normalize_title(clean_title), "description": ""}
+
+            company = pending_company or _extract_company(lines, i)
             if company:
                 current_entry["company"] = company
 
-            duration = _find_nearby_duration(context)
+            duration = pending_duration or inline_duration or _find_nearby_duration(_get_context(lines, i, window=3))
             if duration:
                 current_entry["duration"] = duration
-            elif inline_duration:
-                current_entry["duration"] = inline_duration
 
-        elif current_entry is not None:
-            # Check if line is just a company name or duration that we missed
-            if not current_entry.get("company") and len(stripped) < 50 and not _is_duration_line(stripped) and not stripped.startswith("-") and not stripped.startswith("•"):
-                current_entry["company"] = stripped
-            elif not current_entry.get("duration") and _is_duration_line(stripped):
-                current_entry["duration"] = stripped
-            else:
-                # Part of description
-                if current_entry["description"]:
-                    current_entry["description"] += "\n" + stripped
-                else:
-                    current_entry["description"] = stripped
+            pending_company = None
+            pending_duration = None
+            continue
 
-    # Save the last entry
+        if current_entry is None:
+            continue
+
+        if _looks_like_company_line(stripped) and _next_job_title_within(lines, i, 4):
+            entries.append(_finalize_entry(current_entry))
+            current_entry = None
+            pending_company = stripped
+            pending_duration = None
+            continue
+
+        if not current_entry.get("company") and _looks_like_company_line(stripped):
+            current_entry["company"] = stripped
+            continue
+
+        if not current_entry.get("duration") and _is_duration_line(stripped):
+            current_entry["duration"] = stripped
+            continue
+
+        if current_entry["description"]:
+            current_entry["description"] += "\n" + stripped
+        else:
+            current_entry["description"] = stripped
+
     if current_entry and current_entry.get("title"):
-        entries.append(current_entry)
+        entries.append(_finalize_entry(current_entry))
 
     return {
-        "entries": entries,
+        "entries": [entry for entry in entries if entry and entry.get("title")],
         "durations": durations,
     }
 
@@ -65,18 +88,13 @@ def extract_experience(text):
 def _extract_durations(text):
     """Extract all date range patterns from text."""
     patterns = [
-        # "Jan 2024 - Present", "January 2024 - Dec 2025"
         r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
         r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
         r"Dec(?:ember)?)\s*\.?\s*\d{4}\s*[-–]\s*(?:Present|Current|Ongoing|"
         r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
         r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
         r"Dec(?:ember)?)\s*\.?\s*\d{4})",
-
-        # "06/2024 - 10/2025", "06-2024 - 10-2025"
         r"\d{1,2}[/\-]\d{4}\s*[-–]\s*(?:\d{1,2}[/\-]\d{4}|Present|Current)",
-
-        # "2023 - 2025", "2023 - Present"
         r"(?:19|20)\d{2}\s*[-–]\s*(?:(?:19|20)\d{2}|Present|Current|Ongoing)",
     ]
 
@@ -90,13 +108,11 @@ def _extract_durations(text):
 
 def _is_job_title_line(line):
     """Check if a line likely contains a job title."""
-    line_lower = line.lower().strip()
+    normalized = _normalize_title(line.lower().strip())
 
-    # Job titles are short (typically < 60 chars)
-    if len(line_lower) > 60:
+    if len(normalized) > 80:
         return False
 
-    # Lines starting with description verbs are not job titles
     desc_starters = [
         "developed", "built", "created", "designed", "implemented",
         "worked", "used", "focused", "provided", "integrated",
@@ -105,23 +121,20 @@ def _is_job_title_line(line):
         "open to", "quick learner", "strong", "eager",
         "enabled", "technologies",
     ]
-    if any(line_lower.startswith(s) for s in desc_starters):
+    if any(normalized.startswith(starter) for starter in desc_starters):
         return False
 
-    # Reject skill/tech listings (lines like "Web Development: HTML, CSS, JS")
-    if ":" in line_lower and line_lower.count(",") >= 1:
+    if ":" in normalized and normalized.count(",") >= 1:
         return False
 
-    # Reject lines containing education institution keywords
     edu_keywords = ["college", "university", "institute", "school", "academy", "iit", "nit"]
-    if any(kw in line_lower for kw in edu_keywords):
+    if any(keyword in normalized for keyword in edu_keywords):
         return False
 
-    # Reject lines starting with bullet/dash markers
-    if line_lower.startswith("-") or line_lower.startswith("•"):
+    if normalized.startswith("-") or normalized.startswith("\u2022"):
         return False
 
-    return any(keyword in line_lower for keyword in JOB_TITLE_KEYWORDS)
+    return any(keyword in normalized for keyword in JOB_TITLE_KEYWORDS)
 
 
 def _get_context(lines, index, window=3):
@@ -133,27 +146,12 @@ def _get_context(lines, index, window=3):
 
 def _extract_company(lines, title_index):
     """Try to extract company name from lines near the job title."""
-    # Check the line above and below the title for a company name
-    for offset in [-1, 1, 2]:
+    for offset in [1, 2, -1, -2, -3]:
         idx = title_index + offset
         if 0 <= idx < len(lines):
-            line = lines[idx].strip()
-            if not line:
-                continue
-            # Skip lines that are dates, empty, or too short
-            if re.match(r"^[\d/\-\s]+$", line):
-                continue
-            # Skip lines that look like bullet points or descriptions
-            if line.startswith(("-", "*", "•")) or len(line) > 100:
-                continue
-            # Skip lines that are job titles themselves
-            if _is_job_title_line(line):
-                continue
-            # This might be a company name
-            if len(line) > 3 and not any(
-                keyword in line.lower() for keyword in JOB_TITLE_KEYWORDS
-            ):
-                return line
+            candidate = lines[idx].strip()
+            if _looks_like_company_line(candidate):
+                return candidate
 
     return None
 
@@ -216,3 +214,60 @@ def _strip_inline_duration(line):
             return cleaned, duration
 
     return line, None
+
+
+def _normalize_title(value):
+    cleaned = re.sub(r"\s*\|\s*$", "", str(value)).strip(" |,-")
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _looks_like_descriptor_line(line):
+    lowered = line.lower().strip()
+    if len(lowered.split()) > 8:
+        return True
+    return any(token in lowered for token in ["revenue", "employees", "annual", "saas", "firm"])
+
+
+def _looks_like_company_line(line):
+    cleaned = line.strip()
+    if not cleaned:
+        return False
+    if cleaned[0].islower():
+        return False
+    if cleaned.startswith(("-", "*", "\u2022")):
+        return False
+    if _is_duration_line(cleaned) or _is_job_title_line(cleaned):
+        return False
+    if _looks_like_descriptor_line(cleaned):
+        return False
+    if len(cleaned) > 90:
+        return False
+    return True
+
+
+def _next_job_title_within(lines, index, lookahead):
+    seen = 0
+    for idx in range(index + 1, len(lines)):
+        candidate = lines[idx].strip()
+        if not candidate:
+            continue
+        seen += 1
+        if _is_job_title_line(candidate):
+            return True
+        if seen >= lookahead:
+            break
+    return False
+
+
+def _finalize_entry(entry):
+    title = _normalize_title(entry.get("title", ""))
+    if not title:
+        return None
+
+    cleaned = {"title": title}
+    for field in ["company", "duration", "description"]:
+        value = entry.get(field)
+        if value:
+            cleaned[field] = value.strip()
+
+    return cleaned

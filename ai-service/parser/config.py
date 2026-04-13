@@ -67,7 +67,7 @@ SECTION_HEADER_MAP = {
     r"(technical\s+)?skills?(\s+set)?|key\s+skills|core\s+(skills?|competenc)": "skills",
     r"(work\s+)?experience|professional\s+experience|employment(\s+history)?": "experience",
     r"education(al)?(\s+(qualifications?|details|background))?|academic(\s+details)?": "education",
-    r"projects?|personal\s+projects?|academic\s+projects?": "projects",
+    r"(?:technical\s+|personal\s+|academic\s+)?projects?(?:\s*\|.*)?": "projects",
     r"certifications?|certificates?|licenses?": "certifications",
     r"languages?(\s+known)?|linguistic": "languages",
     r"achievements?|awards?|honors?|accomplishments?": "achievements",
@@ -89,7 +89,6 @@ DEGREE_PATTERNS = [
     r"\bdiploma\b", r"\bassociate\b",
     r"\bhsc\b|higher\s+secondary", r"\bssc\b|secondary\s+school",
     r"\b12th\b|\bxii\b", r"\b10th\b",
-    r"\bengineering\b", r"\bdegree\b",
 ]
 
 JOB_TITLE_KEYWORDS = [
