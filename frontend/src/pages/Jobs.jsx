@@ -4,13 +4,18 @@ import {
   ArrowLeft,
   ArrowRight,
   Briefcase,
+  Building2,
   ExternalLink,
   Filter,
+  Globe,
   LoaderCircle,
   MapPin,
+  Plus,
   RefreshCcw,
   Search,
   Sparkles,
+  Trash2,
+  X,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import Card from "../components/ui/Card";
@@ -19,6 +24,7 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../context/useAuth";
 import {
   fetchExternalJobs,
+  scrapeDirectBoards,
   getProfile,
   getJobRecommendations,
 } from "../services/api";
@@ -195,6 +201,14 @@ function JobCard({ job, recommendation = false }) {
   );
 }
 
+const PRESET_BOARDS = [
+  { label: "Discord", url: "https://boards.greenhouse.io/discord", ats: "Greenhouse" },
+  { label: "Stripe", url: "https://jobs.lever.co/stripe", ats: "Lever" },
+  { label: "Notion", url: "https://jobs.ashbyhq.com/notion", ats: "Ashby" },
+  { label: "Figma", url: "https://boards.greenhouse.io/figma", ats: "Greenhouse" },
+  { label: "Vercel", url: "https://boards.greenhouse.io/vercel", ats: "Greenhouse" },
+];
+
 export default function Jobs() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -216,6 +230,14 @@ export default function Jobs() {
   const [recError, setRecError] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
   const [preferredLocationLoaded, setPreferredLocationLoaded] = useState(false);
+
+  // Direct board scraper state
+  const [boardUrls, setBoardUrls] = useState([]);
+  const [boardInput, setBoardInput] = useState("");
+  const [boardJobs, setBoardJobs] = useState([]);
+  const [loadingBoards, setLoadingBoards] = useState(false);
+  const [boardError, setBoardError] = useState("");
+  const [showBoardPanel, setShowBoardPanel] = useState(false);
 
   const searchParams = useMemo(() => {
     const params = {};
@@ -328,6 +350,33 @@ export default function Jobs() {
     setRemoteOnly(false);
   };
 
+  const addBoardUrl = (url) => {
+    const trimmed = url.trim();
+    if (!trimmed || boardUrls.includes(trimmed)) return;
+    setBoardUrls((prev) => [...prev, trimmed]);
+    setBoardInput("");
+  };
+
+  const removeBoardUrl = (url) => {
+    setBoardUrls((prev) => prev.filter((u) => u !== url));
+  };
+
+  const scrapeBoards = async () => {
+    if (!boardUrls.length) return;
+    try {
+      setLoadingBoards(true);
+      setBoardError("");
+      const res = await scrapeDirectBoards(boardUrls);
+      setBoardJobs(res.data.jobs || []);
+    } catch (error) {
+      console.error("Board scrape failed:", error);
+      setBoardError(error.response?.data?.error || "Failed to scrape company boards.");
+      setBoardJobs([]);
+    } finally {
+      setLoadingBoards(false);
+    }
+  };
+
   return (
     <div className="page-shell">
       <main>
@@ -415,6 +464,146 @@ export default function Jobs() {
                 </Card>
               </div>
             </div>
+          </Card>
+
+          {/* ── Company Boards Direct Scraper ── */}
+          <Card className="p-6 sm:p-8">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="grid size-10 place-items-center rounded-xl bg-primary/10">
+                  <Building2 className="size-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-display text-xl text-text-primary">Company Boards</h2>
+                  <p className="text-sm text-text-secondary">Scrape jobs directly from company career pages</p>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => setShowBoardPanel((v) => !v)}
+                className="text-sm"
+              >
+                {showBoardPanel ? <X className="size-4" /> : <Globe className="size-4" />}
+                {showBoardPanel ? "Close" : "Open scraper"}
+              </Button>
+            </div>
+
+            {showBoardPanel ? (
+              <div className="mt-6 space-y-5">
+                {/* Quick-add presets */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary mb-3">
+                    Quick add
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_BOARDS.map((preset) => (
+                      <button
+                        key={preset.url}
+                        type="button"
+                        onClick={() => addBoardUrl(preset.url)}
+                        disabled={boardUrls.includes(preset.url)}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
+                          boardUrls.includes(preset.url)
+                            ? "border-primary/30 bg-primary/8 text-primary cursor-default"
+                            : "border-border bg-white text-text-secondary hover:border-primary/40 hover:text-primary"
+                        }`}
+                      >
+                        <Plus className="size-3.5" />
+                        {preset.label}
+                        <span className="text-xs text-text-tertiary">({preset.ats})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom URL input */}
+                <div className="flex gap-3">
+                  <label className="flex-1 rounded-2xl border border-border bg-white px-4 py-3 flex items-center gap-3">
+                    <Globe className="size-4 text-text-secondary" />
+                    <input
+                      value={boardInput}
+                      onChange={(e) => setBoardInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addBoardUrl(boardInput);
+                        }
+                      }}
+                      placeholder="Paste ATS URL, e.g. https://boards.greenhouse.io/company"
+                      className="w-full bg-transparent outline-none text-text-primary"
+                    />
+                  </label>
+                  <Button
+                    variant="secondary"
+                    onClick={() => addBoardUrl(boardInput)}
+                    disabled={!boardInput.trim()}
+                  >
+                    <Plus className="size-4" />
+                    Add
+                  </Button>
+                </div>
+
+                {/* URL list */}
+                {boardUrls.length > 0 ? (
+                  <div className="space-y-2">
+                    {boardUrls.map((url) => (
+                      <div
+                        key={url}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-2 px-4 py-2.5"
+                      >
+                        <span className="text-sm text-text-primary truncate">{url}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeBoardUrl(url)}
+                          className="text-text-tertiary hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+
+                    <Button
+                      onClick={scrapeBoards}
+                      isLoading={loadingBoards}
+                      className="w-full justify-center mt-3"
+                    >
+                      <Search className="size-4" />
+                      Scrape {boardUrls.length} board{boardUrls.length > 1 ? "s" : ""}
+                    </Button>
+                  </div>
+                ) : null}
+
+                {/* Board error */}
+                {boardError ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    {boardError}
+                  </div>
+                ) : null}
+
+                {/* Loading state */}
+                {loadingBoards ? (
+                  <div className="flex items-center gap-3 text-text-secondary">
+                    <LoaderCircle className="size-5 animate-spin" />
+                    Scraping company boards...
+                  </div>
+                ) : null}
+
+                {/* Board results */}
+                {!loadingBoards && boardJobs.length > 0 ? (
+                  <div className="space-y-4">
+                    <SectionHeader
+                      title={`${boardJobs.length} jobs found`}
+                      description="Scraped directly from company career pages"
+                    />
+                    <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
+                      {boardJobs.map((job, index) => (
+                        <JobCard key={getJobKey(job, index, "board")} job={job} />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </Card>
 
           {user?.role === "job_seeker" ? (

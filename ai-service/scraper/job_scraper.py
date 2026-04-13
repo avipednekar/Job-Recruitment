@@ -9,7 +9,7 @@ from scraper.direct_scraper import scrape_direct_company_boards
 
 
 def _normalize_sites(raw_value):
-    default_sites = ["linkedin", "indeed", "glassdoor", "google", "naukri"]
+    default_sites = ["linkedin", "indeed"]
     source = raw_value if raw_value is not None else os.getenv("JOB_SCRAPER_SITES", "")
     values = source if isinstance(source, list) else str(source).split(",")
 

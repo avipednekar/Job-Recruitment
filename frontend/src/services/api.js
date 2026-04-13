@@ -39,5 +39,7 @@ export const applyToJob = (jobId) => API.post(`/applications/${jobId}`);
 
 // External Jobs
 export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { params });
+export const scrapeDirectBoards = (urls, extract = false) =>
+  API.post("/external-jobs/direct", { urls, extract });
 
 export default API;

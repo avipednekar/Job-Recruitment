@@ -316,3 +316,65 @@ export const fetchExternalJobs = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+// POST /api/external-jobs/direct
+// Scrape jobs from direct company ATS board URLs
+// ─────────────────────────────────────────────
+export const scrapeDirectBoards = async (req, res) => {
+  try {
+    const { urls, extract = false } = req.body;
+
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({ error: "Missing required field: urls (array of ATS board URLs)" });
+    }
+
+    // Cap at 5 URLs per request to avoid abuse
+    const sanitizedUrls = urls.slice(0, 5).map((u) => String(u).trim()).filter(Boolean);
+
+    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+    const response = await axios.post(`${AI_SERVICE_URL}/scrape_direct`, {
+      urls: sanitizedUrls,
+      extract,
+    });
+
+    if (!response.data?.jobs) {
+      return res.json({ success: true, jobs: [], total: 0 });
+    }
+
+    // Format to match the same shape as external jobs so the frontend JobCard works
+    const formattedJobs = response.data.jobs.map((job, index) => {
+      const llm = job.llm_extracted || {};
+      return {
+        _id: job.id || `direct-${Date.now()}-${index}`,
+        id: job.id || `direct-${Date.now()}-${index}`,
+        title: llm.job_title || job.title,
+        company: job.company,
+        location: job.location || "",
+        employment_type: "Full-time",
+        remote: llm.remote_status === "Remote",
+        description: job.description || "",
+        apply_link: job.apply_link || "",
+        source: job.source || "direct",
+        source_type: "external",
+        listing_source: job.source || "direct",
+        postedAt: job.postedAt || null,
+        skills: llm.technical_skills || [],
+        salary_min: llm.salary_min || null,
+        salary_max: llm.salary_max || null,
+        yoe_required: llm.yoe_required || 0,
+        visa_sponsorship: llm.visa_sponsorship || false,
+        remote_status: llm.remote_status || "On-site",
+      };
+    });
+
+    return res.json({
+      success: true,
+      jobs: formattedJobs,
+      total: formattedJobs.length,
+      extracted_count: response.data.extracted_count || 0,
+    });
+  } catch (error) {
+    console.error("Direct Board Scrape Error:", error.message);
+    res.status(500).json({ error: "Failed to scrape company boards" });
+  }
+};
