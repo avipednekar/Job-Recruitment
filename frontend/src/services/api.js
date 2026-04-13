@@ -21,10 +21,7 @@ export const logoutUser = () => API.post("/auth/logout");
 export const getMe = () => API.get("/auth/me");
 
 // Resume upload (returns parsed data from AI service)
-export const uploadResume = (formData) =>
-  API.post("/candidates/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+export const uploadResume = (formData) => API.post("/candidates/upload", formData);
 
 // Profile — single upsert endpoint per role
 export const getProfile = () => API.get("/profile/me");

@@ -7,13 +7,22 @@ import { buildEmbeddingText } from "../utils/embedding.utils.js";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 
+const getServiceErrorMessage = (error, fallbackMessage) => {
+  if (error.response?.data?.error) return error.response.data.error;
+  if (error.response?.data?.message) return error.response.data.message;
+  if (error.message) return error.message;
+  return fallbackMessage;
+};
+
 // ─────────────────────────────────────────────
 // POST /api/candidates/upload
 // ─────────────────────────────────────────────
 export const uploadResume = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No resume file uploaded" });
+      return res.status(400).json({
+        error: "No resume file uploaded. Use the field name `file` or `resume`.",
+      });
     }
 
     console.log("[RESUME] Uploading file:", req.file.originalname, "| size:", req.file.size);
@@ -27,9 +36,18 @@ export const uploadResume = async (req, res) => {
 
     const parseRes = await axios.post(`${AI_SERVICE_URL}/parse`, form, {
       headers: { ...form.getHeaders() },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+      timeout: 60000,
     });
 
-    const parsedData = parseRes.data.data;
+    const parsedData = parseRes?.data?.data;
+    if (!parseRes?.data?.success || !parsedData || typeof parsedData !== "object") {
+      throw new Error(
+        parseRes?.data?.error || "AI service returned an invalid resume parse response",
+      );
+    }
+
     try {
       fs.unlinkSync(req.file.path);
     } catch (e) {
@@ -49,7 +67,7 @@ export const uploadResume = async (req, res) => {
       location: personalInfo.location || "",
       github: personalInfo.github || "",
       linkedin: personalInfo.linkedin || "",
-      summary: personalInfo.summary || "",
+      summary: parsedData.summary || personalInfo.summary || "",
       skills: skillsList,
       education: parsedData.education || [],
       experience: parsedData.experience || [],
@@ -110,8 +128,17 @@ export const uploadResume = async (req, res) => {
         fs.unlinkSync(req.file.path);
       } catch (e) {}
     }
-    console.error("[RESUME] Upload Error:", error.message);
-    res.status(500).json({ error: "Failed to process resume" });
+    const message = getServiceErrorMessage(error, "Failed to process resume");
+    const statusCode = error.response?.status && error.response.status >= 400
+      ? error.response.status
+      : 500;
+
+    console.error("[RESUME] Upload Error:", message);
+    if (error.response?.data) {
+      console.error("[RESUME] AI service response:", error.response.data);
+    }
+
+    res.status(statusCode).json({ error: message });
   }
 };
 

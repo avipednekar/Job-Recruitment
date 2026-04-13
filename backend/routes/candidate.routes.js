@@ -11,15 +11,16 @@ const router = Router();
 router.post(
   "/upload",
   (req, res, next) => {
-    upload.any()(req, res, (err) => {
+    upload.fields([
+      { name: "file", maxCount: 1 },
+      { name: "resume", maxCount: 1 },
+    ])(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         return res.status(400).json({ error: `Upload error: ${err.message}` });
       } else if (err) {
         return res.status(400).json({ error: err.message });
       }
-      if (req.files && req.files.length > 0) {
-        req.file = req.files[0];
-      }
+      req.file = req.files?.file?.[0] || req.files?.resume?.[0] || null;
       next();
     });
   },

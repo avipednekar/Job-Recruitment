@@ -252,7 +252,7 @@ export default function ProfileSetup() {
         location: pi.location || "",
         title: "",
         linkedin: pi.linkedin || "",
-        summary: pi.summary || "",
+        summary: d.summary || pi.summary || "",
         skills: Array.isArray(rawSkills) ? rawSkills : (rawSkills.skills || []),
         education: d.education || [],
         experience: d.experience || [],

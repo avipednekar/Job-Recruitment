@@ -178,6 +178,23 @@ def _find_nearby_duration(context):
     return None
 
 
+def _is_duration_line(line):
+    """Check if a line is primarily a date range or duration string."""
+    stripped = line.strip()
+    patterns = [
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
+        r"Dec(?:ember)?)\s*\.?\s*\d{4}\s*[-–]\s*(?:Present|Current|Ongoing|"
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+        r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
+        r"Dec(?:ember)?)\s*\.?\s*\d{4})",
+        r"\d{1,2}[/\-]\d{4}\s*[-–]\s*(?:\d{1,2}[/\-]\d{4}|Present|Current)",
+        r"(?:19|20)\d{2}\s*[-–]\s*(?:(?:19|20)\d{2}|Present|Current|Ongoing)",
+    ]
+
+    return any(re.fullmatch(pattern, stripped, re.IGNORECASE) for pattern in patterns)
+
+
 def _strip_inline_duration(line):
     """Extract inline duration from a line and return (cleaned_line, duration)."""
     patterns = [

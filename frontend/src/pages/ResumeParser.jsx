@@ -72,7 +72,7 @@ const ResumeParser = () => {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("resume", file);
+      formData.append("file", file);
       const response = await uploadResume(formData);
       setParsedData(response.data.parsed_data);
       toast.success("Resume parsed successfully");
