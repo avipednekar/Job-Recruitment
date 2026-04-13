@@ -32,14 +32,12 @@ import {
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const EXP_LEVELS = ["Entry Level", "1-3 yrs", "3+ yrs", "5+ yrs", "Lead / Manager"];
-const INDIA_LOCATION_PARTS = new Set(["india", "in", "ind", "bharat"]);
 
-const isIndiaDisplayLocation = (value = "") =>
-  String(value)
-    .split(/[,/;()|-]+/)
-    .map((part) => part.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim())
-    .filter(Boolean)
-    .some((part) => INDIA_LOCATION_PARTS.has(part));
+const formatSourceBreakdown = (sourceBreakdown = {}) =>
+  Object.entries(sourceBreakdown)
+    .filter(([, count]) => Number(count) > 0)
+    .map(([source, count]) => `${source}: ${count}`)
+    .join(" • ");
 
 function timeAgo(dateStr) {
   if (!dateStr) return "Recently";
@@ -209,6 +207,7 @@ export default function Jobs() {
   const [remoteOnly, setRemoteOnly] = useState(false);
 
   const [externalJobs, setExternalJobs] = useState([]);
+  const [externalMeta, setExternalMeta] = useState(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [jobsError, setJobsError] = useState("");
 
@@ -239,14 +238,16 @@ export default function Jobs() {
       setJobsError("");
 
       const externalRes = await fetchExternalJobs({
-        q: searchParams.q || "software engineer",
+        q: searchParams.q || "",
         location: searchParams.location || "",
       });
 
       setExternalJobs(externalRes.data.jobs || []);
+      setExternalMeta(externalRes.data.meta || null);
     } catch (error) {
       console.error("Failed to load jobs:", error);
       setExternalJobs([]);
+      setExternalMeta(null);
       setJobsError("We couldn't load jobs right now. Please try again.");
     } finally {
       setLoadingJobs(false);
@@ -263,11 +264,7 @@ export default function Jobs() {
       setLoadingRecs(true);
       setRecError("");
       const res = await getJobRecommendations();
-      setRecommendations(
-        (res.data?.external || []).filter(
-          (job) => job?.remote || isIndiaDisplayLocation(job?.location || ""),
-        ),
-      );
+      setRecommendations(res.data?.external || []);
       setLastRefresh(new Date());
     } catch (error) {
       console.error("Failed to load recommendations:", error);
@@ -398,6 +395,11 @@ export default function Jobs() {
                     <div className="rounded-2xl bg-surface-2 p-4">
                       <p className="text-sm text-text-secondary">Jobs loaded</p>
                       <p className="mt-2 text-3xl font-semibold text-text-primary">{externalJobs.length}</p>
+                      {externalMeta?.source_breakdown ? (
+                        <p className="mt-2 text-xs text-text-secondary">
+                          {formatSourceBreakdown(externalMeta.source_breakdown)}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="rounded-2xl border border-dashed border-border p-4">
                       <p className="text-sm text-text-secondary">
@@ -463,7 +465,7 @@ export default function Jobs() {
                     description="Job openings matched from backend-served sources using your top profile signals."
                   />
                   <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {recommendations.slice(0, 3).map((job, index) => (
+                    {recommendations.slice(0, 6).map((job, index) => (
                       <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
                     ))}
                   </div>

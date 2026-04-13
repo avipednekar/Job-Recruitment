@@ -10,7 +10,7 @@ Endpoints:
     POST /embed           Generate 384-dim semantic embedding from text
     POST /match           Match candidate to job → 7-factor AI score
     POST /recommend_jobs  Rank all jobs for a specific candidate
-    POST /scrape_jobs     Scrape from LinkedIn/Indeed (keyword search)
+    POST /scrape_jobs     Scrape from multiple job boards (keyword search)
     POST /scrape_direct   Scrape from direct company ATS boards → LLM extract → clean JSON
 """
 import os
@@ -141,13 +141,14 @@ def recommend_jobs():
 
 
 # ─────────────────────────────────────────────
-# 5. Scrape Jobs — LinkedIn / Indeed (keyword)
+# 5. Scrape Jobs — multi-board keyword search
 # ─────────────────────────────────────────────
 @app.route("/scrape_jobs", methods=["POST"])
 def scrape_external_jobs():
-    """Takes query, location, page and returns scraped jobs."""
+    """Takes query or queries, location, page and returns scraped jobs."""
     data = request.json or {}
     query = data.get("query", "")
+    queries = data.get("queries", None)
     location = data.get("location", "")
     page = data.get("page", 1)
 
@@ -159,8 +160,21 @@ def scrape_external_jobs():
     page = max(1, page)
 
     try:
-        jobs = fetch_jobs(query, location, page)
-        return jsonify({"success": True, "jobs": jobs})
+        jobs = fetch_jobs(queries or query, location, page)
+        source_breakdown = {}
+        for job in jobs:
+            source = str(job.get("source") or "external").strip().lower() or "external"
+            source_breakdown[source] = source_breakdown.get(source, 0) + 1
+
+        return jsonify({
+            "success": True,
+            "jobs": jobs,
+            "meta": {
+                "total": len(jobs),
+                "queries": queries or [query],
+                "source_breakdown": source_breakdown,
+            },
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

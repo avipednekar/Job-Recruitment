@@ -491,7 +491,7 @@ export default function ProfileView() {
 
               <div className="mt-5 space-y-4">
                 {recommendations.length ? (
-                  recommendations.slice(0, 3).map((job, index) => (
+                  recommendations.slice(0, 6).map((job, index) => (
                     <MiniJobCard key={getJobKey(job, index, "profile-rec")} job={job} index={index} />
                   ))
                 ) : (

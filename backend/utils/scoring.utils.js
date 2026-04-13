@@ -313,6 +313,63 @@ export const buildExternalJobQuery = (candidate) => {
   ]).join(" ");
 };
 
+export const buildExternalJobQueries = (candidate) => {
+  const skills = getCandidateSkills(candidate);
+  const role = inferRecommendationRole(candidate, skills);
+  const topSkills = pickSearchSkills(skills, 2);
+  const seniority = inferCandidateSeniority(candidate);
+  const latestRole = normalizeText(
+    candidate?.experience?.[0]?.title ||
+    candidate?.experience?.[0]?.role ||
+    candidate?.experience?.[0]?.position ||
+    "",
+  );
+
+  const queryPrefix = ["fresher", "entry level", "junior"].includes(seniority)
+    ? `${seniority} `
+    : "";
+
+  let roleVariants = [role];
+
+  if (normalizeText(role).includes("full stack")) {
+    roleVariants = [
+      "Full Stack Developer",
+      "Software Engineer",
+      "MERN Stack Developer",
+      "Backend Developer",
+    ];
+  } else if (normalizeText(role).includes("frontend")) {
+    roleVariants = [
+      "Frontend Developer",
+      "React Developer",
+      "Software Engineer",
+    ];
+  } else if (normalizeText(role).includes("data analyst")) {
+    roleVariants = [
+      "Data Analyst",
+      "Business Intelligence Analyst",
+      "Analytics Engineer",
+    ];
+  } else if (normalizeText(role).includes("devops")) {
+    roleVariants = [
+      "DevOps Engineer",
+      "Cloud Engineer",
+      "Platform Engineer",
+    ];
+  } else if (latestRole) {
+    roleVariants = [latestRole, role, "Software Engineer"];
+  }
+
+  return uniqueValues(
+    roleVariants.map((variant, index) =>
+      uniqueValues([
+        `${queryPrefix}${variant}`.trim(),
+        ...topSkills.slice(0, index === 0 ? 2 : 1),
+      ]).join(" "),
+    ),
+  ).slice(0, 4);
+};
+
 export const extractExternalJobSkills = (job, candidateSkills = []) => {
   const scraperSkills = Array.isArray(job?.skills) ? job.skills : [];
   const haystack = buildExternalJobText(job);

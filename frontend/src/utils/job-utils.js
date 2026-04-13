@@ -8,7 +8,10 @@ export const getJobKey = (job, index = 0, prefix = "job") => {
 export const getExternalApplyUrl = (job) =>
   job?.apply_link || job?.external_url || "";
 
-export const isExternalJob = (job) => job?.source === "external";
+export const isExternalJob = (job) =>
+  job?.source_type === "external" ||
+  (typeof job?.source === "string" && job.source !== "manual") ||
+  Boolean(getExternalApplyUrl(job));
 
 export const getJobDestination = (job) => {
   if (!job) return "/jobs";

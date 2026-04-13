@@ -1,5 +1,10 @@
 import axios from "axios";
 import Candidate from "../models/Candidate.js";
+import {
+  buildExternalJobQueries,
+  buildExternalJobQuery,
+  getCandidateSkills,
+} from "../utils/scoring.utils.js";
 
 // Node.js cache to avoid hitting RapidAPI rate limits unnecessarily
 // 200 requests/month free tier = ~6.5 requests/day. 
@@ -7,7 +12,7 @@ import Candidate from "../models/Candidate.js";
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 import { INDIA_LABEL, INDIA_STATE_TERMS, LOCATION_PREFIX_PATTERN, INDIA_LOCATION_PARTS } from "../utils/constants.js";
-const CACHE_VERSION = "india-v2";
+const CACHE_VERSION = "india-v3";
 const LOCATION_GROUP_SPLIT_REGEX = /\s*(?:;|\||\r?\n)+\s*/;
 
 const normalizeText = (value = "") =>
@@ -96,6 +101,78 @@ const buildIndiaScopedQuery = (q, location) =>
     .join(" ")
     .trim();
 
+const skillTokensFromCandidate = (candidate, limit = 2) =>
+  uniqueValues(
+    getCandidateSkills(candidate)
+      .map((skill) => String(skill || "").trim())
+      .filter(Boolean),
+  ).slice(0, limit);
+
+const buildManualSearchVariants = (query, candidate) => {
+  const rawQuery = String(query || "").trim();
+  if (!rawQuery) {
+    return candidate ? buildExternalJobQueries(candidate) : ["software engineer"];
+  }
+
+  const normalizedQuery = normalizeText(rawQuery);
+  const topSkills = skillTokensFromCandidate(candidate, 2);
+  let roleVariants = [];
+
+  if (
+    normalizedQuery.includes("full stack") ||
+    normalizedQuery.includes("fullstack") ||
+    normalizedQuery.includes("mern") ||
+    normalizedQuery.includes("mean")
+  ) {
+    roleVariants = [
+      "Full Stack Developer",
+      "MERN Stack Developer",
+      "Software Engineer",
+      "Backend Developer",
+    ];
+  } else if (
+    normalizedQuery.includes("frontend") ||
+    normalizedQuery.includes("front end") ||
+    normalizedQuery.includes("react")
+  ) {
+    roleVariants = [
+      "Frontend Developer",
+      "React Developer",
+      "Software Engineer",
+    ];
+  } else if (
+    normalizedQuery.includes("backend") ||
+    normalizedQuery.includes("back end") ||
+    normalizedQuery.includes("node") ||
+    normalizedQuery.includes("java") ||
+    normalizedQuery.includes("python")
+  ) {
+    roleVariants = [
+      "Backend Developer",
+      "Software Engineer",
+      "API Developer",
+    ];
+  } else if (
+    normalizedQuery.includes("data analyst") ||
+    normalizedQuery.includes("analytics") ||
+    normalizedQuery.includes("power bi") ||
+    normalizedQuery.includes("tableau")
+  ) {
+    roleVariants = [
+      "Data Analyst",
+      "Business Intelligence Analyst",
+      "Analytics Engineer",
+    ];
+  }
+
+  return uniqueValues([
+    rawQuery,
+    ...roleVariants.map((variant, index) =>
+      uniqueValues([variant, ...topSkills.slice(0, index === 0 ? 2 : 1)]).join(" "),
+    ),
+  ]).slice(0, 5);
+};
+
 const isIndiaLocation = (value = "") =>
   splitLocationParts(value).some((part) => INDIA_LOCATION_PARTS.has(part));
 
@@ -144,16 +221,22 @@ export const fetchExternalJobs = async (req, res) => {
     const { q, location: requestedLocation, page = 1 } = req.query;
 
     let resolvedLocation = String(requestedLocation || "").trim();
+    let candidate = null;
 
     if (!resolvedLocation && req.user?.role === "job_seeker") {
-      const candidate = await Candidate.findOne({ user: req.user.id })
-        .select("location")
+      candidate = await Candidate.findOne({ user: req.user.id })
         .lean();
-      resolvedLocation = candidate?.location?.trim() || "";
+      resolvedLocation =
+        candidate?.location?.trim() ||
+        candidate?.personal_info?.location?.trim() ||
+        "";
+    } else if (req.user?.role === "job_seeker") {
+      candidate = await Candidate.findOne({ user: req.user.id }).lean();
     }
 
-    const queryStr = q || "software engineer";
-    const cacheKey = `${CACHE_VERSION}-localai-${queryStr}-${resolvedLocation}-${page}`;
+    const queryStr = String(q || "").trim() || buildExternalJobQuery(candidate) || "software engineer";
+    const queries = buildManualSearchVariants(queryStr, candidate);
+    const cacheKey = `${CACHE_VERSION}-localai-${queries.join("|")}-${resolvedLocation}-${page}`;
 
     // Check cache
     if (cache.has(cacheKey)) {
@@ -162,6 +245,7 @@ export const fetchExternalJobs = async (req, res) => {
         return res.json({
           success: true,
           jobs: cachedData.jobs,
+          meta: cachedData.meta,
           cached: true,
         });
       }
@@ -172,12 +256,14 @@ export const fetchExternalJobs = async (req, res) => {
     const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
     const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
       query: queryStr,
+      queries,
       location: resolvedLocation,
-      page: Number(page)
+      page: Number(page),
     });
 
     if (response.data && response.data.jobs) {
       const scrapedJobs = response.data.jobs;
+      const responseMeta = response.data.meta || {};
       
       // The Python microservice returns normalized fields
       const formattedJobs = scrapedJobs.map((job, index) => {
@@ -195,19 +281,30 @@ export const fetchExternalJobs = async (req, res) => {
           description: job.description,
           apply_link: job.apply_link,
           source: job.source || "external",
+          source_type: "external",
+          listing_source: job.source || "external",
           postedAt: job.postedAt,
         };
       });
+
+      const meta = {
+        total: formattedJobs.length,
+        query: queryStr,
+        queries,
+        source_breakdown: responseMeta.source_breakdown || {},
+      };
 
       // Save to cache
       cache.set(cacheKey, {
         timestamp: Date.now(),
         jobs: formattedJobs,
+        meta,
       });
 
       return res.json({
         success: true,
         jobs: formattedJobs,
+        meta,
         cached: false,
       });
     }
@@ -218,5 +315,4 @@ export const fetchExternalJobs = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch external jobs" });
   }
 };
-
 

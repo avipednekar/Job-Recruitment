@@ -5,6 +5,7 @@ import Job from "../models/Job.js";
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 import {
   buildExternalJobQuery,
+  buildExternalJobQueries,
   getCandidateSkills,
   estimateCandidateYears,
   inferRecommendationRole,
@@ -383,11 +384,13 @@ export const getJobRecommendations = async (req, res) => {
     let externalJobs = [];
     try {
       const query = buildExternalJobQuery(candidate);
+      const queries = buildExternalJobQueries(candidate);
       
       if (query.trim()) {
         const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
         const externalResponse = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
           query: query,
+          queries,
           location: candidateLocation || "India",
           page: 1
         });
@@ -418,6 +421,8 @@ export const getJobRecommendations = async (req, res) => {
               experience_level: "",
               skills: localRanking.inferredSkills,
               source: job.source || "external",
+              source_type: "external",
+              listing_source: job.source || "external",
               local_match_score: localRanking.score,
               recommendation_excluded: Boolean(localRanking.excluded),
             };
@@ -486,7 +491,7 @@ export const getJobRecommendations = async (req, res) => {
     res.json({
       success: true,
       internal: rankedInternal.slice(0, 10), // Top 10 internal recommendations
-      external: externalJobs.slice(0, 10)    // Top 10 external recommendations
+      external: externalJobs.slice(0, 20),   // Top external recommendations
     });
 
   } catch (error) {
