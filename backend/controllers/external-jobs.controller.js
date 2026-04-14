@@ -4,6 +4,9 @@ import {
   buildExternalJobQueries,
   buildExternalJobQuery,
   getCandidateSkills,
+  estimateCandidateYears,
+  inferRecommendationRole,
+  scoreExternalJobLocally,
 } from "../utils/scoring.utils.js";
 
 // Node.js cache to avoid hitting RapidAPI rate limits unnecessarily
@@ -257,7 +260,7 @@ export const fetchExternalJobs = async (req, res) => {
     const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
       query: queryStr,
       queries,
-      location: resolvedLocation,
+      location: resolvedLocation || "India",
       page: Number(page),
     });
 
@@ -265,9 +268,28 @@ export const fetchExternalJobs = async (req, res) => {
       const scrapedJobs = response.data.jobs;
       const responseMeta = response.data.meta || {};
       
-      // The Python microservice returns normalized fields
-      const formattedJobs = scrapedJobs.map((job, index) => {
+      // Deduplicate jobs by title, company, and location
+      const seenKeys = new Set();
+      const uniqueScrapedJobs = scrapedJobs.filter(job => {
+        const key = `${job.title || ""}-${job.company || ""}-${job.location || ""}`.toLowerCase().replace(/\s+/g, "");
+        if (seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        return true;
+      });
+
+      // Prepare scoring params if candidate exists
+      const candidateSkills = candidate ? getCandidateSkills(candidate) : [];
+      let candidateLocation = candidate?.location?.trim() || candidate?.personal_info?.location?.trim() || "";
+      const candidateYears = candidate ? estimateCandidateYears(candidate) : 0;
+      const inferredRole = candidate ? inferRecommendationRole(candidate, candidateSkills) : "";
+
+      const formattedJobs = uniqueScrapedJobs.map((job, index) => {
         const uniqueId = job.id || `${Date.now()}-${index}`;
+        
+        let localRanking = null;
+        if (candidate) {
+          localRanking = scoreExternalJobLocally(job, candidateSkills, candidateLocation, candidateYears, inferredRole);
+        }
 
         return {
           _id: uniqueId,
@@ -284,8 +306,19 @@ export const fetchExternalJobs = async (req, res) => {
           source_type: "external",
           listing_source: job.source || "external",
           postedAt: job.postedAt,
+          skills: localRanking ? localRanking.inferredSkills : [],
+          match_metrics: localRanking ? { overall_match_score: localRanking.score } : null,
+          local_match_score: localRanking ? localRanking.score : null,
+          match_quality: localRanking 
+            ? (localRanking.score >= 60 ? "high" : localRanking.score >= 35 ? "medium" : localRanking.score >= 12 ? "low" : "stretch") 
+            : null
         };
       });
+
+      // Sort by score so the best matches are always on top
+      if (candidate) {
+        formattedJobs.sort((a,b) => (b.local_match_score || 0) - (a.local_match_score || 0));
+      }
 
       const meta = {
         total: formattedJobs.length,

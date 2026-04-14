@@ -2,6 +2,10 @@ import axios from "axios";
 import { isValidObjectId } from "mongoose";
 import Job from "../models/Job.js";
 
+
+const insightsCache = new Map();
+const INSIGHTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 import {
   buildExternalJobQuery,
@@ -380,116 +384,7 @@ export const getJobRecommendations = async (req, res) => {
       }
     }
 
-    // 4. Fetch External Jobs (JSearch API)
     let externalJobs = [];
-    try {
-      const query = buildExternalJobQuery(candidate);
-      const queries = buildExternalJobQueries(candidate);
-      
-      if (query.trim()) {
-        const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
-        const externalResponse = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
-          query: query,
-          queries,
-          location: candidateLocation || "India",
-          page: 1
-        });
-        externalJobs = (externalResponse.data.jobs || [])
-          .map((job) => {
-            const localRanking = scoreExternalJobLocally(
-              job,
-              candidateSkills,
-              candidateLocation,
-              candidateYears,
-              inferredRole,
-            );
-
-            return {
-              _id: job.id,
-              id: job.id,
-              title: job.title,
-              company: job.company,
-              location: job.location || "Remote",
-              description: job.description || "",
-              employment_type: job.employment_type,
-              remote: job.remote,
-              logo: job.logo,
-              apply_link: job.apply_link,
-              external_url: job.apply_link,
-              postedAt: job.postedAt,
-              salary_range: "", // JobSpy rarely returns min/max natively structured
-              experience_level: "",
-              skills: localRanking.inferredSkills,
-              source: job.source || "external",
-              source_type: "external",
-              listing_source: job.source || "external",
-              local_match_score: localRanking.score,
-              recommendation_excluded: Boolean(localRanking.excluded),
-              match_quality: localRanking.score >= 60 ? "high"
-                : localRanking.score >= 35 ? "medium"
-                : localRanking.score >= 15 ? "low"
-                : "stretch",
-            };
-          })
-          .sort((left, right) => (right.local_match_score || 0) - (left.local_match_score || 0)) || [];
-
-        if (externalJobs.length > 0) {
-          try {
-            const externalRankingResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
-              candidate_data: candidate,
-              jobs_list: externalJobs,
-            });
-
-            if (externalRankingResponse.data.success && externalRankingResponse.data.ranked_jobs) {
-              externalJobs = externalRankingResponse.data.ranked_jobs.map((ranked) => {
-                const fullJob = externalJobs.find((job) => String(job.id) === ranked.job_id);
-                const blendedScore = fullJob
-                  ? ((ranked.overall_match_score * 0.7) + ((fullJob.local_match_score || 0) * 0.3))
-                  : ranked.overall_match_score;
-                return fullJob
-                  ? {
-                      ...fullJob,
-                      match_metrics: {
-                        ...ranked,
-                        overall_match_score: Math.round(blendedScore * 100) / 100,
-                      },
-                      description: fullJob.description
-                        ? `${fullJob.description.substring(0, 150)}...`
-                        : "",
-                    }
-                  : null;
-              })
-                .filter(Boolean)
-                .sort(
-                  (left, right) =>
-                    (right.match_metrics?.overall_match_score || 0) -
-                    (left.match_metrics?.overall_match_score || 0),
-                );
-            } else {
-              externalJobs = externalJobs.map((job) => ({
-                ...job,
-                match_metrics: {
-                  overall_match_score: job.local_match_score || 0,
-                },
-                description: job.description ? `${job.description.substring(0, 150)}...` : "",
-              }));
-            }
-          } catch (rankErr) {
-            console.error("External AI Ranking Error:", rankErr.message);
-            externalJobs = externalJobs.map((job) => ({
-              ...job,
-              match_metrics: {
-                overall_match_score: job.local_match_score || 0,
-              },
-              description: job.description ? `${job.description.substring(0, 150)}...` : "",
-            }));
-          }
-        }
-      }
-    } catch (err) {
-      console.error("External JobSpy Engine Error:", err.message);
-      // Proceed without external jobs if it fails
-    }
 
     // Build profile completeness info
     const profileCompleteness = {
@@ -537,6 +432,17 @@ export const getRecommendationInsights = async (req, res) => {
       return res.json({ success: true, insights: null });
     }
 
+    const jobIdsKey = top_jobs.map((j) => j.id || j._id).sort().join("|");
+    const cacheKey = `${req.user.id}-${jobIdsKey}`;
+
+    if (insightsCache.has(cacheKey)) {
+      const cached = insightsCache.get(cacheKey);
+      if (Date.now() - cached.timestamp < INSIGHTS_CACHE_TTL) {
+        return res.json({ success: true, insights: cached.insights, cached: true });
+      }
+      insightsCache.delete(cacheKey);
+    }
+
     const skills = getCandidateSkills(candidate);
     const role = inferRecommendationRole(candidate, skills);
     const experience = Array.isArray(candidate?.experience) ? candidate.experience : [];
@@ -564,7 +470,11 @@ export const getRecommendationInsights = async (req, res) => {
       score_range: scoreRange,
     });
 
-    if (response.data?.success) {
+    if (response.data?.success && response.data?.insights) {
+      insightsCache.set(cacheKey, {
+        timestamp: Date.now(),
+        insights: response.data.insights,
+      });
       return res.json({ success: true, insights: response.data.insights });
     }
 

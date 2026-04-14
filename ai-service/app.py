@@ -149,7 +149,7 @@ def scrape_external_jobs():
     data = request.json or {}
     query = data.get("query", "")
     queries = data.get("queries", None)
-    location = data.get("location", "")
+    location = data.get("location", "").strip() or "India"
     page = data.get("page", 1)
 
     try:

@@ -325,10 +325,6 @@ export const buildExternalJobQueries = (candidate) => {
     "",
   );
 
-  const queryPrefix = ["fresher", "entry level", "junior"].includes(seniority)
-    ? `${seniority} `
-    : "";
-
   let roleVariants = [role];
 
   if (normalizeText(role).includes("full stack")) {
@@ -363,7 +359,7 @@ export const buildExternalJobQueries = (candidate) => {
   return uniqueValues(
     roleVariants.map((variant, index) =>
       uniqueValues([
-        `${queryPrefix}${variant}`.trim(),
+        variant.trim(),
         ...topSkills.slice(0, index === 0 ? 2 : 1),
       ]).join(" "),
     ),

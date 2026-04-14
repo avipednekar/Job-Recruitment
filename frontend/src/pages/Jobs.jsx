@@ -196,7 +196,10 @@ function JobCard({ job, recommendation = false, dimmed = false }) {
       </div>
 
       <p className="mt-4 text-sm text-text-secondary line-clamp-3">
-        {job.description || "No description available."}
+        {(job.description || "No description available.")
+           .replace(/(\*\*|__)(.*?)\1/g, '$2')
+           .replace(/(\*|_)(.*?)\1/g, '$2')
+           .replace(/#/g, '')}
       </p>
 
       {skills.length ? (
@@ -442,6 +445,16 @@ export default function Jobs() {
       setLoadingJobs(true);
       setJobsError("");
 
+      const cacheKey = JSON.stringify({ q: searchParams.q || "", location: searchParams.location || "" });
+      const cached = sessionStorage.getItem(`jobsCache-${cacheKey}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setExternalJobs(parsed.jobs || []);
+        setExternalMeta(parsed.meta || null);
+        setLoadingJobs(false);
+        return;
+      }
+
       const externalRes = await fetchExternalJobs({
         q: searchParams.q || "",
         location: searchParams.location || "",
@@ -449,6 +462,11 @@ export default function Jobs() {
 
       setExternalJobs(externalRes.data.jobs || []);
       setExternalMeta(externalRes.data.meta || null);
+      
+      sessionStorage.setItem(`jobsCache-${cacheKey}`, JSON.stringify({
+         jobs: externalRes.data.jobs || [],
+         meta: externalRes.data.meta || null
+      }));
     } catch (error) {
       console.error("Failed to load jobs:", error);
       setExternalJobs([]);
@@ -470,17 +488,14 @@ export default function Jobs() {
       setRecError("");
       setInsights(null);
       const res = await getJobRecommendations();
-      const allRecs = [...(res.data?.internal || []), ...(res.data?.external || [])];
-      setRecommendations(allRecs);
+      // Internal jobs are returned via 'internal'
+      const internalRecs = res.data?.internal || [];
+      setRecommendations(internalRecs);
       setProfileCompleteness(res.data?.profile_completeness || null);
       setLastRefresh(new Date());
 
-      // Load insights after a delay (non-blocking)
-      if (allRecs.length > 0) {
-        setTimeout(() => {
-          loadInsights(allRecs);
-        }, 1500);
-      }
+      // Note: Insights are now triggered locally over uiRecommendations inside a distinct useEffect
+      // so it spans both internal and top-matched external jobs dynamically.
     } catch (error) {
       console.error("Failed to load recommendations:", error);
       setRecommendations([]);
@@ -592,6 +607,27 @@ export default function Jobs() {
 
   // Apply soft filters to external jobs
   const filteredExternalJobs = useMemo(() => applyFilters(externalJobs), [applyFilters, externalJobs]);
+
+  // Unified Recommendation Pipeline:
+  // Internal recs + Highest scored manual-search external jobs
+  const uiRecommendations = useMemo(() => {
+    const aiMatchedExternal = filteredExternalJobs.filter(
+      (job) => !job._softFiltered && (job.match_quality === "high" || job.match_quality === "medium")
+    ).slice(0, 10);
+    return [...recommendations, ...aiMatchedExternal];
+  }, [recommendations, filteredExternalJobs]);
+
+  // Load insights whenever uiRecommendations change and aren't empty
+  useEffect(() => {
+    if (uiRecommendations.length > 0 && !insights && !loadingInsights) {
+       const timer = setTimeout(() => {
+         loadInsights(uiRecommendations);
+       }, 1500);
+       return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiRecommendations.length]);
+
   const visibleJobCount = filteredExternalJobs.filter((j) => !j._softFiltered).length;
 
   return (
@@ -726,7 +762,7 @@ export default function Jobs() {
                 </div>
               ) : null}
 
-              {!loadingRecs && !recError && !recommendations.length ? (
+              {!loadingRecs && !recError && !uiRecommendations.length ? (
                 <div className="mt-6">
                   <EmptyState
                     title="No recommendations yet"
@@ -736,10 +772,10 @@ export default function Jobs() {
                 </div>
               ) : null}
 
-              {recommendations.length ? (
+              {uiRecommendations.length ? (
                 <div className="mt-6 space-y-4">
                   <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {recommendations.slice(0, 9).map((job, index) => (
+                    {uiRecommendations.slice(0, 9).map((job, index) => (
                       <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
                     ))}
                   </div>
