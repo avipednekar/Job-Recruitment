@@ -430,10 +430,10 @@ export const scoreExternalJobLocally = (
 
   if (roleScore === 0 && matchedSkills.length === 0) {
     return {
-      score: 0,
+      score: 5,
       inferredSkills,
-      excluded: true,
-      reason: "no_role_or_skill_overlap",
+      excluded: false,
+      reason: "weak_match",
     };
   }
 
@@ -479,10 +479,10 @@ export const scoreExternalJobLocally = (
   }
 
   if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 2) {
-    localScore *= 0.4;
+    localScore *= 0.6;
   }
 
-  const excluded = localScore < 28;
+  const excluded = localScore < 12;
 
   return {
     score: Math.round(localScore * 100) / 100,

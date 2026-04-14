@@ -425,9 +425,12 @@ export const getJobRecommendations = async (req, res) => {
               listing_source: job.source || "external",
               local_match_score: localRanking.score,
               recommendation_excluded: Boolean(localRanking.excluded),
+              match_quality: localRanking.score >= 60 ? "high"
+                : localRanking.score >= 35 ? "medium"
+                : localRanking.score >= 15 ? "low"
+                : "stretch",
             };
           })
-          .filter((job) => !job.recommendation_excluded)
           .sort((left, right) => (right.local_match_score || 0) - (left.local_match_score || 0)) || [];
 
         if (externalJobs.length > 0) {
@@ -488,10 +491,26 @@ export const getJobRecommendations = async (req, res) => {
       // Proceed without external jobs if it fails
     }
 
+    // Build profile completeness info
+    const profileCompleteness = {
+      has_skills: getCandidateSkills(candidate).length > 0,
+      has_experience: (Array.isArray(candidate?.experience) ? candidate.experience : []).length > 0,
+      has_location: Boolean(candidateLocation),
+      has_education: (Array.isArray(candidate?.education) ? candidate.education : []).length > 0,
+      score: 0,
+    };
+    profileCompleteness.score = [
+      profileCompleteness.has_skills,
+      profileCompleteness.has_experience,
+      profileCompleteness.has_location,
+      profileCompleteness.has_education,
+    ].filter(Boolean).length * 25;
+
     res.json({
       success: true,
-      internal: rankedInternal.slice(0, 10), // Top 10 internal recommendations
-      external: externalJobs.slice(0, 20),   // Top external recommendations
+      internal: rankedInternal.slice(0, 10),
+      external: externalJobs.slice(0, 30),
+      profile_completeness: profileCompleteness,
     });
 
   } catch (error) {
@@ -502,3 +521,56 @@ export const getJobRecommendations = async (req, res) => {
   }
 };
 
+
+/* ──────────────────────────────────────────────
+   POST /api/jobs/recommendation-insights
+   Gemini-powered insights (loaded separately, after recs)
+   ────────────────────────────────────────────── */
+export const getRecommendationInsights = async (req, res) => {
+  try {
+    const { top_jobs = [] } = req.body;
+
+    const Candidate = (await import("../models/Candidate.js")).default;
+    const candidate = await Candidate.findOne({ user: req.user.id }).lean();
+
+    if (!candidate) {
+      return res.json({ success: true, insights: null });
+    }
+
+    const skills = getCandidateSkills(candidate);
+    const role = inferRecommendationRole(candidate, skills);
+    const experience = Array.isArray(candidate?.experience) ? candidate.experience : [];
+    const latestRole = experience[0]?.title || experience[0]?.role || "";
+
+    const candidateSummary = [
+      `Role: ${role}`,
+      `Skills: ${skills.slice(0, 10).join(", ")}`,
+      latestRole ? `Latest position: ${latestRole}` : "",
+      `Experience entries: ${experience.length}`,
+      candidate?.location ? `Location: ${candidate.location}` : "",
+    ].filter(Boolean).join(". ");
+
+    const scores = top_jobs.map((j) => j.match_score || 0).filter(Boolean);
+    const scoreRange = {
+      highest: Math.max(...scores, 0),
+      lowest: Math.min(...scores, 0),
+      average: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+    };
+
+    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+    const response = await axios.post(`${AI_SERVICE_URL}/recommend_insights`, {
+      candidate_summary: candidateSummary,
+      top_jobs,
+      score_range: scoreRange,
+    });
+
+    if (response.data?.success) {
+      return res.json({ success: true, insights: response.data.insights });
+    }
+
+    res.json({ success: true, insights: null });
+  } catch (error) {
+    console.error("Recommendation Insights Error:", error.message);
+    res.json({ success: true, insights: null });
+  }
+};

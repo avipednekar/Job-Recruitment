@@ -321,5 +321,27 @@ def extract_job():
         return jsonify({"error": str(e)}), 500
 
 
+# -────────────────────────────────────────────
+# 7. Gemini Recommendation Insights
+# -────────────────────────────────────────────
+@app.route("/recommend_insights", methods=["POST"])
+def recommend_insights():
+    from matching.gemini_insights import generate_recommendation_insights
+
+    data = request.json or {}
+    candidate_summary = data.get("candidate_summary", "")
+    top_jobs = data.get("top_jobs", [])
+    score_range = data.get("score_range", {})
+
+    if not candidate_summary:
+        return jsonify({"error": "Missing required field: candidate_summary"}), 400
+
+    try:
+        insights = generate_recommendation_insights(candidate_summary, top_jobs, score_range)
+        return jsonify({"success": True, "insights": insights})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)

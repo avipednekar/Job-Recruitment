@@ -5,17 +5,23 @@ import {
   ArrowRight,
   Briefcase,
   Building2,
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   Filter,
   Globe,
+  Lightbulb,
   LoaderCircle,
   MapPin,
   Plus,
   RefreshCcw,
   Search,
   Sparkles,
+  Target,
   Trash2,
+  TrendingUp,
   X,
+  Zap,
 } from "lucide-react";
 import Footer from "../components/Footer";
 import Card from "../components/ui/Card";
@@ -27,6 +33,7 @@ import {
   scrapeDirectBoards,
   getProfile,
   getJobRecommendations,
+  fetchRecommendationInsights,
 } from "../services/api";
 import {
   getExternalApplyUrl,
@@ -38,6 +45,14 @@ import {
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const EXP_LEVELS = ["Entry Level", "1-3 yrs", "3+ yrs", "5+ yrs", "Lead / Manager"];
+
+const PRESET_BOARDS = [
+  { label: "Discord", url: "https://boards.greenhouse.io/discord", ats: "Greenhouse" },
+  { label: "Stripe", url: "https://jobs.lever.co/stripe", ats: "Lever" },
+  { label: "Notion", url: "https://jobs.ashbyhq.com/notion", ats: "Ashby" },
+  { label: "Figma", url: "https://boards.greenhouse.io/figma", ats: "Greenhouse" },
+  { label: "Vercel", url: "https://boards.greenhouse.io/vercel", ats: "Greenhouse" },
+];
 
 const formatSourceBreakdown = (sourceBreakdown = {}) =>
   Object.entries(sourceBreakdown)
@@ -54,6 +69,24 @@ function timeAgo(dateStr) {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   return `${days}d ago`;
+}
+
+function getMatchColor(score) {
+  if (score >= 60) return { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "Strong match" };
+  if (score >= 35) return { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Good fit" };
+  if (score >= 15) return { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200", label: "Possible fit" };
+  return { bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200", label: "Stretch role" };
+}
+
+function MatchBadge({ score }) {
+  if (typeof score !== "number" || score === 0) return null;
+  const match = getMatchColor(score);
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${match.bg} ${match.text} ${match.border}`}>
+      <Target className="size-3" />
+      {Math.round(score)}% — {match.label}
+    </span>
+  );
 }
 
 function FilterChip({ active, onClick, children }) {
@@ -82,19 +115,26 @@ function EmptyState({ title, description, action }) {
   );
 }
 
-function SectionHeader({ title, description, action }) {
+function SectionHeader({ title, description, action, icon: Icon }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-      <div>
-        <h2 className="font-display text-2xl text-text-primary">{title}</h2>
-        {description ? <p className="mt-1 text-text-secondary">{description}</p> : null}
+      <div className="flex items-start gap-3">
+        {Icon ? (
+          <div className="grid size-10 place-items-center rounded-xl bg-primary/10 mt-0.5">
+            <Icon className="size-5 text-primary" />
+          </div>
+        ) : null}
+        <div>
+          <h2 className="font-display text-2xl text-text-primary">{title}</h2>
+          {description ? <p className="mt-1 text-text-secondary">{description}</p> : null}
+        </div>
       </div>
       {action}
     </div>
   );
 }
 
-function JobCard({ job, recommendation = false }) {
+function JobCard({ job, recommendation = false, dimmed = false }) {
   const external = isExternalJob(job);
   const destination = getJobDestination(job);
   const applyUrl = getExternalApplyUrl(job);
@@ -103,7 +143,7 @@ function JobCard({ job, recommendation = false }) {
   const skills = Array.isArray(job?.skills) ? job.skills : [];
 
   const content = (
-    <Card className="p-5 h-full flex flex-col border-border hover:border-primary/30 hover:shadow-lg transition-all">
+    <Card className={`p-5 h-full flex flex-col border-border hover:border-primary/30 hover:shadow-lg transition-all ${dimmed ? "opacity-40 hover:opacity-80" : ""}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           {job.logo ? (
@@ -132,16 +172,15 @@ function JobCard({ job, recommendation = false }) {
               {recommendation ? <Badge tone="brand">Recommended</Badge> : null}
               {external ? <Badge tone="neutral">External</Badge> : null}
               {job.remote ? <Badge tone="success">Remote</Badge> : null}
+              {job.match_quality === "stretch" ? <Badge tone="neutral">Stretch</Badge> : null}
             </div>
             <h3 className="font-semibold text-lg text-text-primary line-clamp-2">{job.title}</h3>
             <p className="text-text-secondary mt-1">{job.company}</p>
           </div>
         </div>
 
-        {typeof aiScore === "number" ? (
-          <div className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold text-success whitespace-nowrap">
-            {Math.round(aiScore)}% match
-          </div>
+        {typeof aiScore === "number" && aiScore > 0 ? (
+          <MatchBadge score={aiScore} />
         ) : null}
       </div>
 
@@ -201,13 +240,135 @@ function JobCard({ job, recommendation = false }) {
   );
 }
 
-const PRESET_BOARDS = [
-  { label: "Discord", url: "https://boards.greenhouse.io/discord", ats: "Greenhouse" },
-  { label: "Stripe", url: "https://jobs.lever.co/stripe", ats: "Lever" },
-  { label: "Notion", url: "https://jobs.ashbyhq.com/notion", ats: "Ashby" },
-  { label: "Figma", url: "https://boards.greenhouse.io/figma", ats: "Greenhouse" },
-  { label: "Vercel", url: "https://boards.greenhouse.io/vercel", ats: "Greenhouse" },
-];
+function InsightsPanel({ insights, loading }) {
+  const [expanded, setExpanded] = useState(true);
+
+  if (loading) {
+    return (
+      <Card className="p-5 mt-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+        <div className="flex items-center gap-3 text-text-secondary">
+          <LoaderCircle className="size-5 animate-spin text-primary" />
+          <span className="text-sm font-medium">Generating AI insights...</span>
+        </div>
+      </Card>
+    );
+  }
+
+  if (!insights) return null;
+
+  return (
+    <Card className="mt-6 border-primary/20 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full p-5 flex items-center justify-between gap-3 bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/8 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="grid size-9 place-items-center rounded-lg bg-primary/15">
+            <Lightbulb className="size-4.5 text-primary" />
+          </div>
+          <div className="text-left">
+            <p className="font-semibold text-text-primary">AI Career Insights</p>
+            <p className="text-xs text-text-secondary">Powered by Gemini</p>
+          </div>
+        </div>
+        {expanded ? <ChevronUp className="size-4 text-text-secondary" /> : <ChevronDown className="size-4 text-text-secondary" />}
+      </button>
+
+      {expanded ? (
+        <div className="px-5 pb-5 space-y-5">
+          {/* Gap Analysis */}
+          {insights.gap_analysis ? (
+            <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
+              <p className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+                <TrendingUp className="size-4" />
+                Gap Analysis
+              </p>
+              <p className="mt-1.5 text-sm text-amber-700">{insights.gap_analysis}</p>
+            </div>
+          ) : null}
+
+          {/* Profile Tips */}
+          {insights.profile_tips?.length ? (
+            <div>
+              <p className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-3">
+                <Zap className="size-4 text-primary" />
+                Profile Tips
+              </p>
+              <div className="grid gap-2">
+                {insights.profile_tips.map((tip, i) => (
+                  <div key={`tip-${i}`} className="flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+                    <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <p className="text-sm text-text-secondary">{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Match Reasons */}
+          {insights.match_reasons && Object.keys(insights.match_reasons).length ? (
+            <div>
+              <p className="text-sm font-semibold text-text-primary mb-3">Why these jobs match you</p>
+              <div className="grid gap-2">
+                {Object.entries(insights.match_reasons).slice(0, 5).map(([title, reason]) => (
+                  <div key={title} className="flex items-start gap-3 text-sm">
+                    <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <span className="font-medium text-text-primary">{title}:</span>{" "}
+                      <span className="text-text-secondary">{reason}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function ProfileIncompleteCTA({ completeness }) {
+  if (!completeness || completeness.score >= 75) return null;
+
+  const missing = [];
+  if (!completeness.has_skills) missing.push("skills");
+  if (!completeness.has_experience) missing.push("experience");
+  if (!completeness.has_location) missing.push("location");
+  if (!completeness.has_education) missing.push("education");
+
+  return (
+    <Card className="p-6 border-amber-200 bg-gradient-to-r from-amber-50 to-white">
+      <div className="flex items-start gap-4">
+        <div className="grid size-12 place-items-center rounded-2xl bg-amber-100">
+          <Target className="size-6 text-amber-600" />
+        </div>
+        <div className="flex-1">
+          <h3 className="font-semibold text-text-primary">Complete your profile for better recommendations</h3>
+          <p className="mt-1 text-sm text-text-secondary">
+            Your profile is {completeness.score}% complete. Add your {missing.join(", ")} to unlock more accurate AI-matched jobs.
+          </p>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex-1 h-2 rounded-full bg-amber-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-500 transition-all"
+                style={{ width: `${completeness.score}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-amber-700">{completeness.score}%</span>
+          </div>
+          <Link to="/setup-profile" className="mt-4 inline-block">
+            <Button variant="secondary" className="text-sm">Complete profile</Button>
+          </Link>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 
 export default function Jobs() {
   const navigate = useNavigate();
@@ -226,10 +387,15 @@ export default function Jobs() {
   const [jobsError, setJobsError] = useState("");
 
   const [recommendations, setRecommendations] = useState([]);
+  const [profileCompleteness, setProfileCompleteness] = useState(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [recError, setRecError] = useState("");
   const [lastRefresh, setLastRefresh] = useState(null);
   const [preferredLocationLoaded, setPreferredLocationLoaded] = useState(false);
+
+  // Insights state (loaded after delay)
+  const [insights, setInsights] = useState(null);
+  const [loadingInsights, setLoadingInsights] = useState(false);
 
   // Direct board scraper state
   const [boardUrls, setBoardUrls] = useState([]);
@@ -253,6 +419,23 @@ export default function Jobs() {
   const toggleValue = (value, current, setter) => {
     setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
   };
+
+  // Soft filter logic — dims non-matching jobs instead of hiding
+  const applyFilters = useCallback((jobs) => {
+    return jobs.map((job) => {
+      let matches = true;
+
+      if (selectedTypes.length) {
+        matches = matches && selectedTypes.some((t) => (job.employment_type || "Full-time").toLowerCase().includes(t.toLowerCase()));
+      }
+
+      if (remoteOnly) {
+        matches = matches && Boolean(job.remote);
+      }
+
+      return { ...job, _softFiltered: !matches };
+    });
+  }, [selectedTypes, remoteOnly]);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -285,9 +468,19 @@ export default function Jobs() {
     try {
       setLoadingRecs(true);
       setRecError("");
+      setInsights(null);
       const res = await getJobRecommendations();
-      setRecommendations(res.data?.external || []);
+      const allRecs = [...(res.data?.internal || []), ...(res.data?.external || [])];
+      setRecommendations(allRecs);
+      setProfileCompleteness(res.data?.profile_completeness || null);
       setLastRefresh(new Date());
+
+      // Load insights after a delay (non-blocking)
+      if (allRecs.length > 0) {
+        setTimeout(() => {
+          loadInsights(allRecs);
+        }, 1500);
+      }
     } catch (error) {
       console.error("Failed to load recommendations:", error);
       setRecommendations([]);
@@ -297,7 +490,27 @@ export default function Jobs() {
     } finally {
       setLoadingRecs(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
+
+  const loadInsights = async (recs) => {
+    try {
+      setLoadingInsights(true);
+      const topJobs = recs.slice(0, 8).map((job) => ({
+        title: job.title,
+        company: job.company,
+        match_score: job.match_metrics?.overall_match_score || 0,
+        skills: Array.isArray(job.skills) ? job.skills.slice(0, 5) : [],
+      }));
+
+      const res = await fetchRecommendationInsights(topJobs);
+      setInsights(res.data?.insights || null);
+    } catch (error) {
+      console.error("Failed to load insights:", error);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
 
   useEffect(() => {
     if (preferredLocationLoaded || user?.role !== "job_seeker") {
@@ -377,6 +590,10 @@ export default function Jobs() {
     }
   };
 
+  // Apply soft filters to external jobs
+  const filteredExternalJobs = useMemo(() => applyFilters(externalJobs), [applyFilters, externalJobs]);
+  const visibleJobCount = filteredExternalJobs.filter((j) => !j._softFiltered).length;
+
   return (
     <div className="page-shell">
       <main>
@@ -390,6 +607,7 @@ export default function Jobs() {
             Back to home
           </button>
 
+          {/* ── Hero Section ── */}
           <Card className="overflow-hidden">
             <div className="p-8 sm:p-10 bg-linear-to-br from-[#f5f9ff] via-white to-[#eef8f3]">
               <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)] gap-8">
@@ -403,7 +621,7 @@ export default function Jobs() {
                       Find roles that actually fit your profile
                     </h1>
                     <p className="mt-3 max-w-2xl text-text-secondary text-lg leading-7">
-                      Browse backend-served job results and refresh personalized matches whenever your profile changes.
+                      Browse job results, get AI-powered recommendations, and scrape company boards directly.
                     </p>
                   </div>
 
@@ -466,7 +684,76 @@ export default function Jobs() {
             </div>
           </Card>
 
-          {/* ── Company Boards Direct Scraper ── */}
+          {/* ════════════════════════════════════════════
+              SECTION 1: AI Recommendations (job_seeker)
+              ════════════════════════════════════════════ */}
+          {user?.role === "job_seeker" ? (
+            <Card className="p-6 sm:p-8">
+              <SectionHeader
+                title="Your AI-Matched Jobs"
+                description="Personalized recommendations based on your resume, skills, and preferences."
+                icon={Sparkles}
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={loadRecommendations}
+                    isLoading={loadingRecs}
+                    className="justify-center"
+                  >
+                    <RefreshCcw className="size-4" />
+                    Refresh matches
+                  </Button>
+                }
+              />
+
+              {/* Profile CTA */}
+              {profileCompleteness ? (
+                <div className="mt-6">
+                  <ProfileIncompleteCTA completeness={profileCompleteness} />
+                </div>
+              ) : null}
+
+              {recError ? (
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  {recError}
+                </div>
+              ) : null}
+
+              {loadingRecs ? (
+                <div className="mt-6 flex items-center gap-3 text-text-secondary">
+                  <LoaderCircle className="size-5 animate-spin" />
+                  Updating your job recommendations...
+                </div>
+              ) : null}
+
+              {!loadingRecs && !recError && !recommendations.length ? (
+                <div className="mt-6">
+                  <EmptyState
+                    title="No recommendations yet"
+                    description="Complete your profile and parse your resume to unlock AI-ranked recommendations."
+                    action={<Link to="/setup-profile"><Button>Complete profile</Button></Link>}
+                  />
+                </div>
+              ) : null}
+
+              {recommendations.length ? (
+                <div className="mt-6 space-y-4">
+                  <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
+                    {recommendations.slice(0, 9).map((job, index) => (
+                      <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Delayed Insights Panel */}
+              <InsightsPanel insights={insights} loading={loadingInsights} />
+            </Card>
+          ) : null}
+
+          {/* ════════════════════════════════════════════
+              SECTION 2: Company Boards Direct Scraper
+              ════════════════════════════════════════════ */}
           <Card className="p-6 sm:p-8">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -490,7 +777,6 @@ export default function Jobs() {
 
             {showBoardPanel ? (
               <div className="mt-6 space-y-5">
-                {/* Quick-add presets */}
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary mb-3">
                     Quick add
@@ -516,7 +802,6 @@ export default function Jobs() {
                   </div>
                 </div>
 
-                {/* Custom URL input */}
                 <div className="flex gap-3">
                   <label className="flex-1 rounded-2xl border border-border bg-white px-4 py-3 flex items-center gap-3">
                     <Globe className="size-4 text-text-secondary" />
@@ -543,7 +828,6 @@ export default function Jobs() {
                   </Button>
                 </div>
 
-                {/* URL list */}
                 {boardUrls.length > 0 ? (
                   <div className="space-y-2">
                     {boardUrls.map((url) => (
@@ -573,14 +857,12 @@ export default function Jobs() {
                   </div>
                 ) : null}
 
-                {/* Board error */}
                 {boardError ? (
                   <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                     {boardError}
                   </div>
                 ) : null}
 
-                {/* Loading state */}
                 {loadingBoards ? (
                   <div className="flex items-center gap-3 text-text-secondary">
                     <LoaderCircle className="size-5 animate-spin" />
@@ -588,7 +870,6 @@ export default function Jobs() {
                   </div>
                 ) : null}
 
-                {/* Board results */}
                 {!loadingBoards && boardJobs.length > 0 ? (
                   <div className="space-y-4">
                     <SectionHeader
@@ -606,63 +887,9 @@ export default function Jobs() {
             ) : null}
           </Card>
 
-          {user?.role === "job_seeker" ? (
-            <Card className="p-6 sm:p-8">
-              <SectionHeader
-                title="Recommended for you"
-                description="Fresh matches based on your saved profile, parsed resume content, and backend-served job sources."
-                action={
-                  <Button
-                    variant="secondary"
-                    onClick={loadRecommendations}
-                    isLoading={loadingRecs}
-                    className="justify-center"
-                  >
-                    <RefreshCcw className="size-4" />
-                    Refresh matches
-                  </Button>
-                }
-              />
-
-              {recError ? (
-                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                  {recError}
-                </div>
-              ) : null}
-
-              {loadingRecs ? (
-                <div className="mt-6 flex items-center gap-3 text-text-secondary">
-                  <LoaderCircle className="size-5 animate-spin" />
-                  Updating your job recommendations...
-                </div>
-              ) : null}
-
-              {!loadingRecs && !recError && !recommendations.length ? (
-                <div className="mt-6">
-                  <EmptyState
-                    title="No recommendations yet"
-                    description="Complete your profile and parse your resume to unlock AI-ranked recommendations."
-                    action={<Link to="/profile"><Button>Open profile</Button></Link>}
-                  />
-                </div>
-              ) : null}
-
-              {recommendations.length ? (
-                <div className="mt-8 space-y-4">
-                  <SectionHeader
-                    title="Recommended matches"
-                    description="Job openings matched from backend-served sources using your top profile signals."
-                  />
-                  <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {recommendations.slice(0, 6).map((job, index) => (
-                      <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-          ) : null}
-
+          {/* ════════════════════════════════════════════
+              SECTION 3: All Jobs Search (with soft filters)
+              ════════════════════════════════════════════ */}
           <div className="grid lg:grid-cols-[290px_minmax(0,1fr)] gap-6">
             <Card className="p-5 h-fit lg:sticky lg:top-24">
               <div className="flex items-center justify-between gap-3">
@@ -743,6 +970,17 @@ export default function Jobs() {
                   />
                 </div>
 
+                {/* Filter summary */}
+                {(selectedTypes.length > 0 || remoteOnly) ? (
+                  <div className="rounded-xl bg-surface-2 p-3 text-xs text-text-secondary">
+                    <p className="font-medium text-text-primary">Soft filtering active</p>
+                    <p className="mt-1">
+                      Showing {visibleJobCount} matching / {filteredExternalJobs.length} total.
+                      Non-matching jobs are dimmed, not hidden.
+                    </p>
+                  </div>
+                ) : null}
+
                 <Button className="w-full justify-center" onClick={loadJobs}>
                   Apply filters
                 </Button>
@@ -752,8 +990,9 @@ export default function Jobs() {
             <div className="space-y-8">
               <section className="space-y-4">
                 <SectionHeader
-                  title="Jobs"
-                  description="Backend-served openings refreshed from your current search."
+                  title="All Jobs"
+                  description="Browse all openings from your search. Filters dim non-matching results."
+                  icon={Search}
                 />
 
                 {jobsError ? (
@@ -786,18 +1025,22 @@ export default function Jobs() {
                   </div>
                 ) : null}
 
-                {!loadingJobs && !externalJobs.length ? (
+                {!loadingJobs && !filteredExternalJobs.length ? (
                   <EmptyState
                     title="No jobs found"
-                    description="Try a broader title or a different location to widen the external search."
+                    description="Try a broader title or a different location to widen the search."
                     action={<Button onClick={clearFilters}>Reset filters</Button>}
                   />
                 ) : null}
 
-                {externalJobs.length ? (
+                {filteredExternalJobs.length ? (
                   <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {externalJobs.map((job, index) => (
-                      <JobCard key={getJobKey(job, index, "ext")} job={job} />
+                    {filteredExternalJobs.map((job, index) => (
+                      <JobCard
+                        key={getJobKey(job, index, "ext")}
+                        job={job}
+                        dimmed={job._softFiltered}
+                      />
                     ))}
                   </div>
                 ) : null}

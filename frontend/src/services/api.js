@@ -36,6 +36,8 @@ export const deleteJob = (id) => API.delete(`/jobs/${id}`);
 export const getMyJobs = () => API.get("/jobs/my");
 export const getJobRecommendations = () => API.get("/jobs/recommendations");
 export const applyToJob = (jobId) => API.post(`/applications/${jobId}`);
+export const fetchRecommendationInsights = (topJobs) =>
+  API.post("/jobs/recommendation-insights", { top_jobs: topJobs });
 
 // External Jobs
 export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { params });
