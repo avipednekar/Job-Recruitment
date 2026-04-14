@@ -248,7 +248,7 @@ function InsightsPanel({ insights, loading }) {
 
   if (loading) {
     return (
-      <Card className="p-5 mt-6 border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
+      <Card className="p-5 mt-6 border-primary/20 bg-linear-to-r from-primary/5 to-transparent">
         <div className="flex items-center gap-3 text-text-secondary">
           <LoaderCircle className="size-5 animate-spin text-primary" />
           <span className="text-sm font-medium">Generating AI insights...</span>
@@ -264,7 +264,7 @@ function InsightsPanel({ insights, loading }) {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full p-5 flex items-center justify-between gap-3 bg-gradient-to-r from-primary/5 to-transparent hover:from-primary/8 transition-colors"
+        className="w-full p-5 flex items-center justify-between gap-3 bg-linear-to-r from-primary/5 to-transparent hover:from-primary/8 transition-colors"
       >
         <div className="flex items-center gap-3">
           <div className="grid size-9 place-items-center rounded-lg bg-primary/15">
@@ -344,7 +344,7 @@ function ProfileIncompleteCTA({ completeness }) {
   if (!completeness.has_education) missing.push("education");
 
   return (
-    <Card className="p-6 border-amber-200 bg-gradient-to-r from-amber-50 to-white">
+    <Card className="p-6 border-amber-200 bg-linear-to-r from-amber-50 to-white">
       <div className="flex items-start gap-4">
         <div className="grid size-12 place-items-center rounded-2xl bg-amber-100">
           <Target className="size-6 text-amber-600" />
