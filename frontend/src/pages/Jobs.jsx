@@ -372,6 +372,20 @@ function ProfileIncompleteCTA({ completeness }) {
   );
 }
 
+const getRecommendationKey = (job) =>
+  [
+    job?._id,
+    job?.id,
+    job?.apply_link,
+    job?.external_url,
+    job?.title,
+    job?.company,
+    job?.location,
+  ]
+    .filter(Boolean)
+    .join("|")
+    .toLowerCase();
+
 
 export default function Jobs() {
   const navigate = useNavigate();
@@ -390,6 +404,7 @@ export default function Jobs() {
   const [jobsError, setJobsError] = useState("");
 
   const [recommendations, setRecommendations] = useState([]);
+  const [externalRecommendations, setExternalRecommendations] = useState([]);
   const [profileCompleteness, setProfileCompleteness] = useState(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [recError, setRecError] = useState("");
@@ -488,9 +503,10 @@ export default function Jobs() {
       setRecError("");
       setInsights(null);
       const res = await getJobRecommendations();
-      // Internal jobs are returned via 'internal'
       const internalRecs = res.data?.internal || [];
+      const externalRecs = res.data?.external || [];
       setRecommendations(internalRecs);
+      setExternalRecommendations(externalRecs);
       setProfileCompleteness(res.data?.profile_completeness || null);
       setLastRefresh(new Date());
 
@@ -499,13 +515,13 @@ export default function Jobs() {
     } catch (error) {
       console.error("Failed to load recommendations:", error);
       setRecommendations([]);
+      setExternalRecommendations([]);
       setRecError(
         error.response?.data?.error || "Recommendations are unavailable until your profile and AI service are ready."
       );
     } finally {
       setLoadingRecs(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
 
   const loadInsights = async (recs) => {
@@ -609,13 +625,32 @@ export default function Jobs() {
   const filteredExternalJobs = useMemo(() => applyFilters(externalJobs), [applyFilters, externalJobs]);
 
   // Unified Recommendation Pipeline:
-  // Internal recs + Highest scored manual-search external jobs
+  // Internal recs + backend external recs + highest scored listed external jobs
   const uiRecommendations = useMemo(() => {
     const aiMatchedExternal = filteredExternalJobs.filter(
       (job) => !job._softFiltered && (job.match_quality === "high" || job.match_quality === "medium")
     ).slice(0, 10);
-    return [...recommendations, ...aiMatchedExternal];
-  }, [recommendations, filteredExternalJobs]);
+    const mergedRecommendations = [...recommendations, ...externalRecommendations, ...aiMatchedExternal];
+    const seenKeys = new Set();
+
+    return mergedRecommendations
+      .filter((job) => {
+        const key = getRecommendationKey(job);
+        if (!key) {
+          return true;
+        }
+        if (seenKeys.has(key)) {
+          return false;
+        }
+        seenKeys.add(key);
+        return true;
+      })
+      .sort(
+        (left, right) =>
+          (right.match_metrics?.overall_match_score || 0) -
+          (left.match_metrics?.overall_match_score || 0),
+      );
+  }, [recommendations, externalRecommendations, filteredExternalJobs]);
 
   // Load insights whenever uiRecommendations change and aren't empty
   useEffect(() => {

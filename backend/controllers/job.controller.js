@@ -20,6 +20,116 @@ import {
   getCandidatePreferredLocation,
 } from "../utils/location.utils.js";
 
+const dedupeScrapedJobs = (jobs = []) => {
+  const seenKeys = new Set();
+
+  return jobs.filter((job) => {
+    const key = [
+      job?.id,
+      job?.title,
+      job?.company,
+      job?.location,
+      job?.apply_link,
+    ]
+      .filter(Boolean)
+      .join("-")
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
+    if (!key) {
+      return true;
+    }
+
+    if (seenKeys.has(key)) {
+      return false;
+    }
+
+    seenKeys.add(key);
+    return true;
+  });
+};
+
+const getExternalMatchQuality = (score = 0) => {
+  if (score >= 60) return "high";
+  if (score >= 35) return "medium";
+  if (score >= 12) return "low";
+  return "stretch";
+};
+
+const buildExternalRecommendationJobs = ({
+  jobs = [],
+  candidateSkills = [],
+  candidateLocation = "",
+  candidateYears = 0,
+  inferredRole = "",
+}) =>
+  dedupeScrapedJobs(jobs)
+    .map((job, index) => {
+      const localRanking = scoreExternalJobLocally(
+        job,
+        candidateSkills,
+        candidateLocation,
+        candidateYears,
+        inferredRole,
+      );
+
+      if (localRanking?.excluded) {
+        return null;
+      }
+
+      const uniqueId = job.id || `recommendation-external-${Date.now()}-${index}`;
+      const overallScore = localRanking?.score || 0;
+
+      return {
+        _id: uniqueId,
+        id: uniqueId,
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        logo: job.logo,
+        employment_type: job.employment_type || "Full-time",
+        remote: job.remote,
+        description: job.description,
+        apply_link: job.apply_link,
+        source: job.source || "external",
+        source_type: "external",
+        listing_source: job.source || "external",
+        postedAt: job.postedAt,
+        skills: localRanking?.inferredSkills || [],
+        match_metrics: { overall_match_score: overallScore },
+        local_match_score: overallScore,
+        match_quality: getExternalMatchQuality(overallScore),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => (right.local_match_score || 0) - (left.local_match_score || 0));
+
+const fetchRecommendedExternalJobs = async ({
+  candidate,
+  candidateSkills,
+  candidateLocation,
+  candidateYears,
+  inferredRole,
+}) => {
+  const query = buildExternalJobQuery(candidate) || inferredRole || "software engineer";
+  const queries = buildExternalJobQueries(candidate);
+
+  const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
+    query,
+    queries: queries.length ? queries : [query],
+    location: candidateLocation || "India",
+    page: 1,
+  });
+
+  return buildExternalRecommendationJobs({
+    jobs: response.data?.jobs || [],
+    candidateSkills,
+    candidateLocation,
+    candidateYears,
+    inferredRole,
+  });
+};
+
 /* ──────────────────────────────────────────────
    GET /api/jobs — Search, filter, paginate
    ────────────────────────────────────────────── */
@@ -326,7 +436,10 @@ export const getJobRecommendations = async (req, res) => {
     const internalJobs = await Job.find({ status: "active" }).lean();
     let rankedInternal = [];
     const candidateSkills = getCandidateSkills(candidate);
-    const candidateLocation = getCandidatePreferredLocation(candidate);
+    const candidateLocation =
+      getCandidatePreferredLocation(candidate) ||
+      candidate?.personal_info?.location?.trim() ||
+      "";
     const candidateYears = estimateCandidateYears(candidate);
     const inferredRole = inferRecommendationRole(candidate, candidateSkills);
 
@@ -385,6 +498,19 @@ export const getJobRecommendations = async (req, res) => {
     }
 
     let externalJobs = [];
+
+    try {
+      externalJobs = await fetchRecommendedExternalJobs({
+        candidate,
+        candidateSkills,
+        candidateLocation,
+        candidateYears,
+        inferredRole,
+      });
+    } catch (err) {
+      console.error("External Recommendation Error:", err.message);
+      externalJobs = [];
+    }
 
     // Build profile completeness info
     const profileCompleteness = {

@@ -22,6 +22,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/useAuth";
 import {
+  fetchExternalJobs,
   getJobRecommendations,
   getProfile,
   saveJobSeekerProfile,
@@ -95,6 +96,50 @@ function MiniJobCard({ job, index }) {
     </Card>
   );
 }
+
+const getRecommendationKey = (job) =>
+  [
+    job?._id,
+    job?.id,
+    job?.apply_link,
+    job?.external_url,
+    job?.title,
+    job?.company,
+    job?.location,
+  ]
+    .filter(Boolean)
+    .join("|")
+    .toLowerCase();
+
+const dedupeRecommendations = (jobs = []) => {
+  const seenKeys = new Set();
+
+  return jobs.filter((job) => {
+    const key = getRecommendationKey(job);
+    if (!key) {
+      return true;
+    }
+    if (seenKeys.has(key)) {
+      return false;
+    }
+    seenKeys.add(key);
+    return true;
+  });
+};
+
+const pickProfileFallbackRecommendations = (jobs = []) => {
+  const highConfidence = jobs.filter(
+    (job) => job.match_quality === "high" || job.match_quality === "medium",
+  );
+
+  if (highConfidence.length) {
+    return dedupeRecommendations(highConfidence);
+  }
+
+  return dedupeRecommendations(
+    jobs.filter((job) => (job.match_metrics?.overall_match_score || 0) > 0),
+  );
+};
 
 function TimelineList({ icon, title, items = [], emptyText, getPrimary, getSecondary }) {
   const normalized = Array.isArray(items) ? items : [];
@@ -258,9 +303,24 @@ export default function ProfileView() {
     try {
       setRecsLoading(true);
       const res = await getJobRecommendations();
-      setRecommendations(res.data?.external || []);
+      const primaryRecommendations = dedupeRecommendations(res.data?.external || []);
+
+      if (primaryRecommendations.length) {
+        setRecommendations(primaryRecommendations);
+        return;
+      }
+
+      const fallbackRes = await fetchExternalJobs();
+      setRecommendations(pickProfileFallbackRecommendations(fallbackRes.data?.jobs || []).slice(0, 6));
     } catch (error) {
       console.error("Failed to fetch recommendations:", error);
+      try {
+        const fallbackRes = await fetchExternalJobs();
+        setRecommendations(pickProfileFallbackRecommendations(fallbackRes.data?.jobs || []).slice(0, 6));
+      } catch (fallbackError) {
+        console.error("Fallback recommendation fetch failed:", fallbackError);
+        setRecommendations([]);
+      }
     } finally {
       setRecsLoading(false);
     }

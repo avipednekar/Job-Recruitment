@@ -178,7 +178,7 @@ function StepIndicator({ steps, currentStep }) {
 // ─────────────────────────────────────────────
 // Empty profile data template
 // ─────────────────────────────────────────────
-export const emptyJobSeekerProfile = (user) => ({
+const emptyJobSeekerProfile = (user) => ({
   name: user?.name || "",
   email: user?.email || "",
   phone: "",
