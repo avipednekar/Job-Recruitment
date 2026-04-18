@@ -15,6 +15,7 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const closeMenu = () => setIsOpen(false);
+  const profileLabel = user?.role === "job_seeker" ? "Dashboard" : "Profile";
 
   const handleLogout = async () => {
     await logout();
@@ -48,7 +49,7 @@ const Navbar = () => {
             </Link>
             {isAuthenticated ? (
               <Link className={linkClass("/profile")} to="/profile">
-                Profile
+                {profileLabel}
               </Link>
             ) : null}
           </div>
@@ -105,7 +106,7 @@ const Navbar = () => {
           </Link>
           {isAuthenticated ? (
             <Link to="/profile" className={cn("block", linkClass("/profile"))} onClick={closeMenu}>
-              Profile
+              {profileLabel}
             </Link>
           ) : null}
 
