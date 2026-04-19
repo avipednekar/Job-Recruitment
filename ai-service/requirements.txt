@@ -12,3 +12,7 @@ pandas
 python-jobspy
 
 google-generativeai 
+
+pytest
+pytest-cov
+reportlab
