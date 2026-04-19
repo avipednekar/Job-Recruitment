@@ -39,6 +39,15 @@ uploads/
 backend/uploads/
 ai-service/uploads/
 
+# GSD planning files
+.planning/
+GEMINI.md
+
+# Test infrastructure
+backend/__tests__/
+backend/jest.config.js
+ai-service/tests/
+ai-service/pyproject.toml
 
 # Local planning/docs/data files
 /implementation_plan.md.resolved
