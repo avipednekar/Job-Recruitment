@@ -30,13 +30,14 @@ Automated, intelligent job-candidate matching that saves recruiters time and hel
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Test infrastructure for all three services (backend, frontend, AI service)
+- [ ] Test infrastructure for backend (Express/Jest/Supertest) and AI service (Flask/pytest)
 - [ ] Fix critical security bugs (unauthenticated endpoints, hardcoded secrets, debug data leaks)
-- [ ] Fix architectural issues (duplicated logic, hardcoded URLs, missing pagination)
+- [ ] Fix architectural issues (duplicated logic, missing pagination)
 - [ ] Fix code-level bugs (certifications KeyError, unused models, temp file cleanup)
 
 ### Out of Scope
 
+- Frontend testing — not in scope for this milestone
 - New features (notifications, video interviews, assessments) — focus on stability first
 - Deployment/DevOps (Docker, CI/CD, monitoring) — after test coverage exists
 - Mobile app — web-first
@@ -63,7 +64,6 @@ Automated, intelligent job-candidate matching that saves recruiters time and hel
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Jest + Supertest for backend tests | Industry standard for Express apps, good mocking support | — Pending |
-| Vitest + React Testing Library for frontend | Native Vite integration, same API as Jest | — Pending |
 | pytest for AI service | Python standard, good fixture support | — Pending |
 | Test infra before bug fixes | Tests catch regressions when fixing bugs | — Pending |
 | Fix security bugs first among bug fixes | Highest risk items | — Pending |
