@@ -12,7 +12,7 @@ This milestone focuses on establishing test infrastructure for the backend and A
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Test Infrastructure** - Set up Jest/Supertest for backend and pytest for AI service with fixtures and mocks
+- [x] **Phase 1: Test Infrastructure** - Set up Jest/Supertest for backend and pytest for AI service with fixtures and mocks
 - [ ] **Phase 2: Core Test Suites** - Write comprehensive tests for auth, jobs, candidates, AI parsing, matching, and endpoints
 - [ ] **Phase 3: Security & Bug Fixes** - Fix critical security vulnerabilities and code-level bugs with test coverage
 - [ ] **Phase 4: Refactoring** - Extract duplicated logic and split oversized files into focused modules
@@ -33,8 +33,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Backend test infrastructure (Jest, Supertest, MongoDB memory server, Axios mocks, JWT test util)
-- [ ] 01-02: AI service test infrastructure (pytest, conftest.py, sample resume fixtures, model mocks)
+- [x] 01-01: Backend test infrastructure (Jest, Supertest, MongoDB memory server, Axios mocks, JWT test util)
+- [x] 01-02: AI service test infrastructure (pytest, conftest.py, sample resume fixtures, model mocks)
 
 ### Phase 2: Core Test Suites
 **Goal**: Comprehensive test coverage for all critical backend endpoints and AI service modules — catching existing bugs through tests
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Test Infrastructure | 0/2 | Not started | - |
+| 1. Test Infrastructure | 2/2 | Complete | 2026-04-19 |
 | 2. Core Test Suites | 0/3 | Not started | - |
 | 3. Security & Bug Fixes | 0/2 | Not started | - |
 | 4. Refactoring | 0/2 | Not started | - |
