@@ -625,16 +625,18 @@ export default function Jobs() {
   const filteredExternalJobs = useMemo(() => applyFilters(externalJobs), [applyFilters, externalJobs]);
 
   // Unified Recommendation Pipeline:
-  // Internal recs + backend external recs + highest scored listed external jobs
+  // Internal recs + backend external recs — consistent with Dashboard
+  // Only show 50%+ match score
   const uiRecommendations = useMemo(() => {
-    const aiMatchedExternal = filteredExternalJobs.filter(
-      (job) => !job._softFiltered && (job.match_quality === "high" || job.match_quality === "medium")
-    ).slice(0, 10);
-    const mergedRecommendations = [...recommendations, ...externalRecommendations, ...aiMatchedExternal];
+    const mergedRecommendations = [...recommendations, ...externalRecommendations];
     const seenKeys = new Set();
 
     return mergedRecommendations
       .filter((job) => {
+        // Only show jobs with 50%+ match score
+        const score = job.match_metrics?.overall_match_score || 0;
+        if (score < 50) return false;
+
         const key = getRecommendationKey(job);
         if (!key) {
           return true;
@@ -650,7 +652,7 @@ export default function Jobs() {
           (right.match_metrics?.overall_match_score || 0) -
           (left.match_metrics?.overall_match_score || 0),
       );
-  }, [recommendations, externalRecommendations, filteredExternalJobs]);
+  }, [recommendations, externalRecommendations]);
 
   // Load insights whenever uiRecommendations change and aren't empty
   useEffect(() => {

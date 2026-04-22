@@ -6,10 +6,10 @@ Scores a candidate against a job using these weighted factors:
   1. Semantic Match (30%)  — Cosine similarity of full-profile embeddings
   2. Skills Match   (25%)  — % of required job skills that the candidate has
   3. Project Match  (15%)  — How relevant the candidate's projects are to the job
-  4. Experience     (15%)  — Years of experience vs job requirement
+  4. Experience     (20%)  — Years of experience vs job requirement (checked first)
   5. Location       (5%)   — City/remote match
-  6. Education      (5%)   — Degree-level relevance
-  7. Salary         (5%)   — Salary range overlap
+  6. Education      (3%)   — Degree-level relevance
+  7. Salary         (2%)   — Salary range overlap
 
 Total = 100%
 """
@@ -734,8 +734,8 @@ def match_candidate_to_job(candidate_data, job_data):
     Computes the composite match score using the enhanced 8-signal algorithm.
 
     Weights:
-      Semantic   22%  |  TF-IDF     8%  |  Skills    25%  |  Projects  15%
-      Experience 15%  |  Location   5%  |  Education  5%  |  Salary  5%
+      Semantic   20%  |  TF-IDF     5%  |  Skills    25%  |  Projects  15%
+      Experience 20%  |  Location   5%  |  Education  3%  |  Salary  2%  (+ 5% buffer to experience gating)
     """
 
     # ── Gather candidate data ──
@@ -781,17 +781,25 @@ def match_candidate_to_job(candidate_data, job_data):
     education_score  = calculate_education_score(job_data, cand_education)
     salary_score     = calculate_salary_score(job_data.get('salary_range'), candidate_data.get('desired_salary'))
 
+    # ── Experience gating — apply penalty before composite ──
+    experience_multiplier = 1.0
+    required_years = extract_required_years(job_data.get('experience_level'))
+    if required_years > 0 and experience_score == 0:
+        experience_multiplier = 0.0
+    elif required_years > 0 and experience_score < 30:
+        experience_multiplier = 0.3
+
     # ── Composite ──
     total_score = (
-        (semantic_score   * 0.22) +
-        (tfidf_score      * 0.08) +
+        (semantic_score   * 0.20) +
+        (tfidf_score      * 0.05) +
         (skill_score      * 0.25) +
         (project_score    * 0.15) +
-        (experience_score * 0.15) +
+        (experience_score * 0.20) +
         (location_score   * 0.05) +
-        (education_score  * 0.05) +
-        (salary_score     * 0.05)
-    )
+        (education_score  * 0.03) +
+        (salary_score     * 0.02)
+    ) * experience_multiplier
 
     return {
         "overall_match_score": round(total_score, 2),

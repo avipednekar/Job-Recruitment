@@ -40,6 +40,12 @@ if base_dir not in sys.path:
 from scraper.job_scraper import fetch_jobs
 from scraper.direct_scraper import scrape_direct_company_boards
 from job_data.llm_extractor import extract_job_details_with_llm
+from matching.embeddings import _get_model
+
+# Pre-load the embedding model at startup to avoid 3-8s cold-start penalty
+print("[Init] Pre-loading sentence-transformer embedding model...")
+_get_model()
+print("[Init] Model loaded successfully.")
 
 
 # ─────────────────────────────────────────────

@@ -26,7 +26,6 @@ import {
 } from "../components/profile/jobSeekerProfileData";
 import { useAuth } from "../context/useAuth";
 import {
-  fetchExternalJobs,
   getApplications,
   getJobRecommendations,
   getProfile,
@@ -261,19 +260,7 @@ const dedupeRecommendations = (jobs = []) => {
   });
 };
 
-const pickProfileFallbackRecommendations = (jobs = []) => {
-  const highConfidence = jobs.filter(
-    (job) => job.match_quality === "high" || job.match_quality === "medium",
-  );
 
-  if (highConfidence.length) {
-    return dedupeRecommendations(highConfidence);
-  }
-
-  return dedupeRecommendations(
-    jobs.filter((job) => (job.match_metrics?.overall_match_score || 0) > 0),
-  );
-};
 
 function computeInsights(profile) {
   const skills = profile?.skills || [];
@@ -386,24 +373,18 @@ export default function ProfileView() {
       const res = await getJobRecommendations();
       const internalJobs = Array.isArray(res.data?.internal) ? res.data.internal : [];
       const externalJobs = Array.isArray(res.data?.external) ? res.data.external : [];
-      const combined = dedupeRecommendations([...internalJobs, ...externalJobs]);
+      const combined = dedupeRecommendations([...internalJobs, ...externalJobs])
+        .filter((job) => (job.match_metrics?.overall_match_score || 0) >= 50)
+        .sort(
+          (left, right) =>
+            (right.match_metrics?.overall_match_score || 0) -
+            (left.match_metrics?.overall_match_score || 0),
+        );
 
-      if (combined.length) {
-        setRecommendations(combined);
-        return;
-      }
-
-      const fallbackRes = await fetchExternalJobs();
-      setRecommendations(pickProfileFallbackRecommendations(fallbackRes.data?.jobs || []).slice(0, 8));
+      setRecommendations(combined);
     } catch (error) {
       console.error("Failed to fetch recommendations:", error);
-      try {
-        const fallbackRes = await fetchExternalJobs();
-        setRecommendations(pickProfileFallbackRecommendations(fallbackRes.data?.jobs || []).slice(0, 8));
-      } catch (fallbackError) {
-        console.error("Fallback recommendation fetch failed:", fallbackError);
-        setRecommendations([]);
-      }
+      setRecommendations([]);
     } finally {
       setRecsLoading(false);
     }

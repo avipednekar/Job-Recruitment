@@ -2,7 +2,6 @@ import axios from "axios";
 import { isValidObjectId } from "mongoose";
 import Job from "../models/Job.js";
 
-
 const insightsCache = new Map();
 const INSIGHTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -420,13 +419,29 @@ export const getMyJobs = async (req, res) => {
 /* ──────────────────────────────────────────────
    GET /api/jobs/recommendations — Hybrid Recommend Engine
    ────────────────────────────────────────────── */
+
+// Per-user recommendation cache (5-minute TTL)
+const recommendationCache = new Map();
+const RECOMMENDATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export const getJobRecommendations = async (req, res) => {
   try {
-    console.log("[Job Recs] Fetching profile for user:", req.user?.id);
-    
+    const userId = req.user?.id;
+    const startTime = Date.now();
+    console.log("[Job Recs] Starting recommendation pipeline for user:", userId);
+
+    // ── Check cache first ──
+    const cached = recommendationCache.get(userId);
+    if (cached && (Date.now() - cached.timestamp < RECOMMENDATION_CACHE_TTL)) {
+      console.log(`[Job Recs] Cache hit for user ${userId} (${Date.now() - startTime}ms)`);
+      return res.json(cached.data);
+    }
+
+    console.log("[Job Recs] Cache miss — computing fresh recommendations...");
+
     // 1. Fetch user's candidate profile (if job_seeker)
     const Candidate = (await import("../models/Candidate.js")).default;
-    const candidate = await Candidate.findOne({ user: req.user.id }).lean();
+    const candidate = await Candidate.findOne({ user: userId }).lean();
 
     if (!candidate) {
       return res.status(404).json({ error: "Candidate profile not found. Please upload a resume first." });
@@ -434,7 +449,6 @@ export const getJobRecommendations = async (req, res) => {
 
     // 2. Fetch all active internal jobs
     const internalJobs = await Job.find({ status: "active" }).lean();
-    let rankedInternal = [];
     const candidateSkills = getCandidateSkills(candidate);
     const candidateLocation =
       getCandidatePreferredLocation(candidate) ||
@@ -443,73 +457,80 @@ export const getJobRecommendations = async (req, res) => {
     const candidateYears = estimateCandidateYears(candidate);
     const inferredRole = inferRecommendationRole(candidate, candidateSkills);
 
-    console.log(`[Job Recs] Found ${internalJobs.length} active internal jobs. Requesting AI ranking...`);
+    console.log(`[Job Recs] Found ${internalJobs.length} active internal jobs. Running AI ranking + scraping in PARALLEL...`);
 
-    // 3. Ask Python AI to rank internal jobs
-    if (internalJobs.length > 0) {
-      try {
-        const internalLocalRankings = new Map(
-          internalJobs.map((job) => [
-            job._id.toString(),
-            scoreExternalJobLocally(
-              job,
-              candidateSkills,
-              candidateLocation,
-              candidateYears,
-              inferredRole,
-            ),
-          ]),
-        );
+    // ── 3. Run BOTH in parallel (biggest perf optimization) ──
+    const internalRankingPromise = (async () => {
+      if (internalJobs.length === 0) return [];
 
-        const aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
-          candidate_data: candidate,
-          jobs_list: internalJobs,
-        });
-        
-        // Map the scored IDs back to the full job objects
-        if (aiResponse.data.success && aiResponse.data.ranked_jobs) {
-          rankedInternal = aiResponse.data.ranked_jobs.map(ranked => {
-            const fullJob = internalJobs.find(j => j._id.toString() === ranked.job_id);
-            const localRanking = fullJob ? internalLocalRankings.get(fullJob._id.toString()) : null;
-            if (!fullJob || localRanking?.excluded) {
-              return null;
-            }
-            const blendedScore = (ranked.overall_match_score * 0.65) + ((localRanking?.score || 0) * 0.35);
-            return {
-              ...fullJob,
-              match_metrics: {
-                ...ranked,
-                overall_match_score: Math.round(blendedScore * 100) / 100,
-              },
-            };
-          })
-            .filter(Boolean)
-            .sort(
-              (left, right) =>
-                (right.match_metrics?.overall_match_score || 0) -
-                (left.match_metrics?.overall_match_score || 0),
-            );
-        }
-      } catch (err) {
-        console.error("AI Recommendation Error:", err.message);
-        // Fallback: just return latest jobs if AI fails
-        rankedInternal = internalJobs.sort((a, b) => b.createdAt - a.createdAt);
-      }
-    }
+      const internalLocalRankings = new Map(
+        internalJobs.map((job) => [
+          job._id.toString(),
+          scoreExternalJobLocally(
+            job,
+            candidateSkills,
+            candidateLocation,
+            candidateYears,
+            inferredRole,
+          ),
+        ]),
+      );
 
-    let externalJobs = [];
-
-    try {
-      externalJobs = await fetchRecommendedExternalJobs({
-        candidate,
-        candidateSkills,
-        candidateLocation,
-        candidateYears,
-        inferredRole,
+      const aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
+        candidate_data: candidate,
+        jobs_list: internalJobs,
       });
-    } catch (err) {
-      console.error("External Recommendation Error:", err.message);
-      externalJobs = [];
+
+      if (aiResponse.data.success && aiResponse.data.ranked_jobs) {
+        return aiResponse.data.ranked_jobs.map(ranked => {
+          const fullJob = internalJobs.find(j => j._id.toString() === ranked.job_id);
+          const localRanking = fullJob ? internalLocalRankings.get(fullJob._id.toString()) : null;
+          if (!fullJob || localRanking?.excluded) {
+            return null;
+          }
+          const blendedScore = (ranked.overall_match_score * 0.65) + ((localRanking?.score || 0) * 0.35);
+          return {
+            ...fullJob,
+            match_metrics: {
+              ...ranked,
+              overall_match_score: Math.round(blendedScore * 100) / 100,
+            },
+          };
+        })
+          .filter(Boolean)
+          .sort(
+            (left, right) =>
+              (right.match_metrics?.overall_match_score || 0) -
+              (left.match_metrics?.overall_match_score || 0),
+          );
+      }
+
+      // Fallback: just return latest jobs if AI fails
+      return internalJobs.sort((a, b) => b.createdAt - a.createdAt);
+    })();
+
+    const externalScrapingPromise = fetchRecommendedExternalJobs({
+      candidate,
+      candidateSkills,
+      candidateLocation,
+      candidateYears,
+      inferredRole,
+    });
+
+    // Wait for both to complete — neither blocks the other
+    const [internalResult, externalResult] = await Promise.allSettled([
+      internalRankingPromise,
+      externalScrapingPromise,
+    ]);
+
+    const rankedInternal = internalResult.status === "fulfilled" ? internalResult.value : [];
+    const externalJobs = externalResult.status === "fulfilled" ? externalResult.value : [];
+
+    if (internalResult.status === "rejected") {
+      console.error("AI Recommendation Error:", internalResult.reason?.message);
+    }
+    if (externalResult.status === "rejected") {
+      console.error("External Recommendation Error:", externalResult.reason?.message);
     }
 
     // Build profile completeness info
@@ -527,12 +548,22 @@ export const getJobRecommendations = async (req, res) => {
       profileCompleteness.has_education,
     ].filter(Boolean).length * 25;
 
-    res.json({
+    const responseData = {
       success: true,
       internal: rankedInternal.slice(0, 10),
       external: externalJobs.slice(0, 30),
       profile_completeness: profileCompleteness,
+    };
+
+    // ── Store in cache ──
+    recommendationCache.set(userId, {
+      timestamp: Date.now(),
+      data: responseData,
     });
+
+    console.log(`[Job Recs] Pipeline complete in ${Date.now() - startTime}ms (internal: ${rankedInternal.length}, external: ${externalJobs.length})`);
+
+    res.json(responseData);
 
   } catch (error) {
     console.error("=============== CRITICAL ERROR IN JOB RECOMMENDATIONS ===============");

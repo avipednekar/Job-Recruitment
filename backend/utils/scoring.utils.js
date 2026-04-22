@@ -390,6 +390,41 @@ export const scoreExternalJobLocally = (
   const titleText = normalizeText(job?.title || "");
   const jobText = buildExternalJobText(job);
   const inferredSkills = extractExternalJobSkills(job, candidateSkills);
+
+  // ── STEP 1: Check experience fit FIRST (gating signal) ──
+  const requiredYears = extractRequiredYearsFromExternalJob(job);
+  let experienceFitScore = 70;
+  if (requiredYears > 0) {
+    if (candidateYears >= requiredYears) {
+      experienceFitScore = 100;
+    } else {
+      experienceFitScore = Math.max(0, 100 - ((requiredYears - candidateYears) * 40));
+    }
+  }
+
+  // Hard gate: if experience is a complete mismatch, exclude immediately
+  if (exceedsCandidateExperience(job, candidateYears)) {
+    return {
+      score: 0,
+      inferredSkills,
+      excluded: true,
+      reason: "experience_mismatch",
+    };
+  }
+
+  // ── STEP 2: Non-tech title check ──
+  const hasNonTechTitle = hasAnyKeyword(titleText, NON_TECH_TITLE_TERMS);
+  const hasTechTitle = hasAnyKeyword(titleText, TECH_TITLE_TERMS);
+  if (hasNonTechTitle && !hasTechTitle) {
+    return {
+      score: 0,
+      inferredSkills,
+      excluded: true,
+      reason: "non_tech_title",
+    };
+  }
+
+  // ── STEP 3: Calculate remaining signals ──
   const normalizedCandidateSkills = candidateSkills.map((skill) => normalizeText(skill));
   const matchedSkills = inferredSkills.filter((skill) =>
     normalizedCandidateSkills.includes(normalizeText(skill)),
@@ -413,17 +448,6 @@ export const scoreExternalJobLocally = (
   const roleMatches = roleKeywords.filter((token) => titleText.includes(normalizeText(token)));
   const roleScore = roleMatches.length ? Math.min(100, 45 + (roleMatches.length * 18)) : 0;
 
-  const hasNonTechTitle = hasAnyKeyword(titleText, NON_TECH_TITLE_TERMS);
-  const hasTechTitle = hasAnyKeyword(titleText, TECH_TITLE_TERMS);
-  if (hasNonTechTitle && !hasTechTitle) {
-    return {
-      score: 0,
-      inferredSkills,
-      excluded: true,
-      reason: "non_tech_title",
-    };
-  }
-
   if (roleScore === 0 && matchedSkills.length === 0) {
     return {
       score: 5,
@@ -439,16 +463,6 @@ export const scoreExternalJobLocally = (
       ? 75
       : 0;
 
-  const requiredYears = extractRequiredYearsFromExternalJob(job);
-  let experienceFitScore = 70;
-  if (requiredYears > 0) {
-    if (candidateYears >= requiredYears) {
-      experienceFitScore = 100;
-    } else {
-      experienceFitScore = Math.max(0, 100 - ((requiredYears - candidateYears) * 40));
-    }
-  }
-
   let careerStageScore = 55;
   if (candidateYears < 1.5) {
     if (hasAnyKeyword(titleText, ENTRY_LEVEL_TITLE_TERMS)) {
@@ -458,13 +472,26 @@ export const scoreExternalJobLocally = (
     }
   }
 
+  // ── STEP 4: Weighted composite — experience is now 22% ──
   let localScore = (
-    (skillScore * 0.32) +
-    (roleScore * 0.30) +
-    (locationScore * 0.14) +
-    (experienceFitScore * 0.16) +
-    (careerStageScore * 0.08)
+    (skillScore * 0.28) +
+    (roleScore * 0.26) +
+    (locationScore * 0.12) +
+    (experienceFitScore * 0.22) +
+    (careerStageScore * 0.12)
   );
+
+  // ── STEP 5: Relevance penalties (experience penalties first) ──
+  const experienceGap = requiredYears > 0 ? requiredYears - candidateYears : 0;
+  if (requiredYears > 0 && experienceGap >= 2) {
+    localScore *= 0.35;
+  } else if (requiredYears > 0 && experienceFitScore < 50) {
+    localScore *= 0.55;
+  }
+
+  if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 2) {
+    localScore *= 0.5;
+  }
 
   if (roleScore === 0) {
     localScore *= 0.35;
@@ -472,10 +499,6 @@ export const scoreExternalJobLocally = (
 
   if (matchedSkills.length === 0 && skillScore < 25) {
     localScore *= 0.45;
-  }
-
-  if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 2) {
-    localScore *= 0.6;
   }
 
   const excluded = localScore < 12;
