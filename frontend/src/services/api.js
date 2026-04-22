@@ -45,4 +45,12 @@ export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { pa
 export const scrapeDirectBoards = (urls, extract = false) =>
   API.post("/external-jobs/direct", { urls, extract });
 
+// ATS Checker
+export const checkATSScore = (formData) =>
+  API.post("/ats/check", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
 export default API;

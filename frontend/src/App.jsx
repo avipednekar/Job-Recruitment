@@ -11,6 +11,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ProfileSetup from "./pages/ProfileSetup";
 import ProfileView from "./pages/ProfileView";
+import ATSChecker from "./pages/ATSChecker";
 
 // ─────────────────────────────────────────────
 // Route guards
@@ -78,6 +79,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/jobs" element={<Jobs />} />
               <Route path="/jobs/:id" element={<JobDetails />} />
+              <Route path="/ats-checker" element={<ATSChecker />} />
 
               {/* Guest-only (redirect if logged in) */}
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />

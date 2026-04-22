@@ -147,6 +147,24 @@ def recommend_jobs():
 
 
 # ─────────────────────────────────────────────
+# 4b. Gemini ATS Score
+# ─────────────────────────────────────────────
+@app.route("/ats_score", methods=["POST"])
+def ats_score():
+    """Takes resume text and job description, returns Gemini ATS score."""
+    from matching.ats_gemini import calculate_ats_score
+
+    data = request.json
+    if not data or "resume_text" not in data or "job_description" not in data:
+        return jsonify({"error": "Missing required fields: resume_text, job_description"}), 400
+
+    try:
+        score_result = calculate_ats_score(data["resume_text"], data["job_description"])
+        return jsonify({"success": True, "match_result": score_result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ─────────────────────────────────────────────
 # 5. Scrape Jobs — multi-board keyword search
 # ─────────────────────────────────────────────
 @app.route("/scrape_jobs", methods=["POST"])

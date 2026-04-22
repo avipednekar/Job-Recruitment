@@ -47,6 +47,9 @@ const Navbar = () => {
             <Link className={linkClass("/jobs")} to="/jobs">
               Jobs
             </Link>
+            <Link className={linkClass("/ats-checker")} to="/ats-checker">
+              ATS Checker
+            </Link>
             {isAuthenticated ? (
               <Link className={linkClass("/profile")} to="/profile">
                 {profileLabel}
@@ -103,6 +106,9 @@ const Navbar = () => {
           </Link>
           <Link to="/jobs" className={cn("block", linkClass("/jobs"))} onClick={closeMenu}>
             Jobs
+          </Link>
+          <Link to="/ats-checker" className={cn("block", linkClass("/ats-checker"))} onClick={closeMenu}>
+            ATS Checker
           </Link>
           {isAuthenticated ? (
             <Link to="/profile" className={cn("block", linkClass("/profile"))} onClick={closeMenu}>
