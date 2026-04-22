@@ -425,20 +425,25 @@ const recommendationCache = new Map();
 const RECOMMENDATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 export const getJobRecommendations = async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    const startTime = Date.now();
-    console.log("[Job Recs] Starting recommendation pipeline for user:", userId);
+  const userId = req.user?.id;
+  const startTime = Date.now();
+  console.log("[Job Recs] Request received for user:", userId);
 
-    // ── Check cache first ──
-    const cached = recommendationCache.get(userId);
-    if (cached && (Date.now() - cached.timestamp < RECOMMENDATION_CACHE_TTL)) {
-      console.log(`[Job Recs] Cache hit for user ${userId} (${Date.now() - startTime}ms)`);
-      return res.json(cached.data);
+  // ── Check cache first (Promise-based to prevent stampede) ──
+  const cached = recommendationCache.get(userId);
+  if (cached && (Date.now() - cached.timestamp < RECOMMENDATION_CACHE_TTL)) {
+    console.log(`[Job Recs] Cache hit for user ${userId} (${Date.now() - startTime}ms)`);
+    try {
+      const data = await cached.promise;
+      return res.json(data);
+    } catch (error) {
+      console.log(`[Job Recs] Cached promise failed, retrying for user ${userId}`);
     }
+  }
 
-    console.log("[Job Recs] Cache miss — computing fresh recommendations...");
+  console.log("[Job Recs] Cache miss — computing fresh recommendations...");
 
+  const pipelinePromise = (async () => {
     // 1. Fetch user's candidate profile (if job_seeker)
     const Candidate = (await import("../models/Candidate.js")).default;
     const candidate = await Candidate.findOne({ user: userId }).lean();
@@ -555,17 +560,22 @@ export const getJobRecommendations = async (req, res) => {
       profile_completeness: profileCompleteness,
     };
 
-    // ── Store in cache ──
-    recommendationCache.set(userId, {
-      timestamp: Date.now(),
-      data: responseData,
-    });
+    return responseData;
+  })();
 
-    console.log(`[Job Recs] Pipeline complete in ${Date.now() - startTime}ms (internal: ${rankedInternal.length}, external: ${externalJobs.length})`);
+  // ── Store Promise in cache ──
+  recommendationCache.set(userId, {
+    timestamp: Date.now(),
+    promise: pipelinePromise,
+  });
 
-    res.json(responseData);
-
+  try {
+    const data = await pipelinePromise;
+    console.log(`[Job Recs] Pipeline complete in ${Date.now() - startTime}ms (internal: ${data.internal.length}, external: ${data.external.length})`);
+    res.json(data);
   } catch (error) {
+    // Remove failed promise from cache
+    recommendationCache.delete(userId);
     console.error("=============== CRITICAL ERROR IN JOB RECOMMENDATIONS ===============");
     console.error("Error Message:", error.message);
     console.error("Stack Trace:", error.stack);

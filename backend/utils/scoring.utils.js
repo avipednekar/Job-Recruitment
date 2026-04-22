@@ -331,39 +331,32 @@ export const buildExternalJobQueries = (candidate) => {
     roleVariants = [
       "Full Stack Developer",
       "Software Engineer",
-      "MERN Stack Developer",
-      "Backend Developer",
     ];
   } else if (normalizeText(role).includes("frontend")) {
     roleVariants = [
       "Frontend Developer",
       "React Developer",
-      "Software Engineer",
     ];
-  } else if (normalizeText(role).includes("data analyst")) {
+  } else if (normalizeText(role).includes("backend")) {
+    roleVariants = [
+      "Backend Developer",
+      "Node.js Developer",
+    ];
+  } else if (normalizeText(role).includes("data")) {
     roleVariants = [
       "Data Analyst",
-      "Business Intelligence Analyst",
-      "Analytics Engineer",
+      "Data Engineer",
     ];
-  } else if (normalizeText(role).includes("devops")) {
-    roleVariants = [
-      "DevOps Engineer",
-      "Cloud Engineer",
-      "Platform Engineer",
-    ];
-  } else if (latestRole) {
-    roleVariants = [latestRole, role, "Software Engineer"];
   }
 
-  return uniqueValues(
-    roleVariants.map((variant, index) =>
-      uniqueValues([
-        variant.trim(),
-        ...topSkills.slice(0, index === 0 ? 2 : 1),
-      ]).join(" "),
-    ),
-  ).slice(0, 4);
+  // To prevent hitting rate limits / memory issues with JobSpy,
+  // we slice to a maximum of 2 variants.
+  return roleVariants.slice(0, 2).map((variant) => {
+    if (topSkills.length > 0) {
+      return `${variant} ${topSkills.join(" ")}`;
+    }
+    return variant;
+  });
 };
 
 export const extractExternalJobSkills = (job, candidateSkills = []) => {
