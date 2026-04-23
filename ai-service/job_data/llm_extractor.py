@@ -35,7 +35,8 @@ from bs4 import BeautifulSoup
 # ─────────────────────────────────────────────
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODELS_ENV = os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite-preview")
+GEMINI_MODELS = [m.strip() for m in GEMINI_MODELS_ENV.split(",") if m.strip()]
 
 # Maximum characters of text to send to the LLM (cost control)
 MAX_INPUT_CHARS = 12_000
@@ -112,10 +113,10 @@ def _call_gemini(clean_text: str) -> dict | None:
         return None
 
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
 
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
+        client = genai.Client(api_key=GEMINI_API_KEY)
 
         # Truncate input to control costs
         truncated = clean_text[:MAX_INPUT_CHARS]
@@ -124,35 +125,47 @@ def _call_gemini(clean_text: str) -> dict | None:
 
         prompt = f"{SYSTEM_PROMPT}\n\n--- JOB POSTING ---\n{truncated}"
 
-        print(f"[LLM_EXTRACTOR] Sending {len(truncated)} chars to Gemini ({GEMINI_MODEL})...")
+        print(f"[LLM_EXTRACTOR] Sending {len(truncated)} chars to Gemini...")
 
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.1,
-                max_output_tokens=1024,
-            ),
-        )
+        last_error = None
+        for model_name in GEMINI_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=1024,
+                        response_mime_type="application/json"
+                    ),
+                )
 
-        raw_output = response.text.strip()
-        print(f"[LLM_EXTRACTOR] Raw LLM response ({len(raw_output)} chars): {raw_output[:200]}...")
+                raw_output = response.text.strip()
+                print(f"[LLM_EXTRACTOR] Raw LLM response from {model_name} ({len(raw_output)} chars): {raw_output[:200]}...")
 
-        # Strip markdown code fences if the LLM added them despite instructions
-        if raw_output.startswith("```"):
-            raw_output = re.sub(r"^```(?:json)?\s*", "", raw_output)
-            raw_output = re.sub(r"\s*```$", "", raw_output)
+                # Strip markdown code fences if the LLM added them despite instructions
+                if raw_output.startswith("```"):
+                    raw_output = re.sub(r"^```(?:json)?\s*", "", raw_output)
+                    raw_output = re.sub(r"\s*```$", "", raw_output)
 
-        parsed = json.loads(raw_output)
-        return _validate_and_normalize(parsed)
+                parsed = json.loads(raw_output)
+                return _validate_and_normalize(parsed)
+            
+            except json.JSONDecodeError as e:
+                print(f"[LLM_EXTRACTOR] Failed to parse LLM output as JSON from {model_name}: {e}")
+                last_error = e
+            except Exception as e:
+                print(f"[LLM_EXTRACTOR] Gemini API call failed with {model_name}: {e}")
+                last_error = e
+
+        print("[LLM_EXTRACTOR] All Gemini models failed. Returning None.")
+        return None
 
     except ImportError:
-        print("[LLM_EXTRACTOR] google-generativeai package not installed — run: pip install google-generativeai")
-        return None
-    except json.JSONDecodeError as e:
-        print(f"[LLM_EXTRACTOR] Failed to parse LLM output as JSON: {e}")
+        print("[LLM_EXTRACTOR] google-genai package not installed — run: pip install google-genai")
         return None
     except Exception as e:
-        print(f"[LLM_EXTRACTOR] Gemini API call failed: {e}")
+        print(f"[LLM_EXTRACTOR] Critical error: {e}")
         traceback.print_exc()
         return None
 

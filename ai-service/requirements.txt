@@ -11,7 +11,7 @@ selenium
 pandas
 python-jobspy
 
-google-generativeai 
+google-genai 
 
 pytest
 pytest-cov

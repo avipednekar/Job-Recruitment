@@ -13,7 +13,8 @@ import json
 import traceback
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODELS_ENV = os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite-preview")
+GEMINI_MODELS = [m.strip() for m in GEMINI_MODELS_ENV.split(",") if m.strip()]
 
 INSIGHTS_SYSTEM_PROMPT = """You are a career advisor AI. Given a candidate's profile summary and a list of job matches with scores, generate actionable insights.
 
@@ -57,9 +58,9 @@ def generate_recommendation_insights(candidate_summary: str, top_jobs: list, sco
         return _fallback_insights(top_jobs, score_range)
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel(GEMINI_MODEL)
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=GEMINI_API_KEY)
 
         # Build the prompt
         jobs_text = "\n".join([
@@ -78,32 +79,46 @@ Score Range: Highest={score_range.get('highest', 0)}%, Lowest={score_range.get('
 
 Generate insights for this candidate."""
 
-        response = model.generate_content(
-            [INSIGHTS_SYSTEM_PROMPT, prompt],
-            generation_config={"temperature": 0.4, "max_output_tokens": 800},
-        )
+        last_error = None
+        for model_name in GEMINI_MODELS:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[INSIGHTS_SYSTEM_PROMPT, prompt],
+                    config=types.GenerateContentConfig(
+                        temperature=0.4,
+                        max_output_tokens=2048,
+                        response_mime_type="application/json"
+                    ),
+                )
 
-        raw_text = response.text.strip()
-        # Strip markdown code fences if present
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("\n", 1)[-1]
-            if raw_text.endswith("```"):
-                raw_text = raw_text[:-3].strip()
+                raw_text = response.text.strip()
+                # Strip markdown code fences if present
+                if raw_text.startswith("```"):
+                    raw_text = raw_text.split("\n", 1)[-1]
+                    if raw_text.endswith("```"):
+                        raw_text = raw_text[:-3].strip()
 
-        result = json.loads(raw_text)
+                result = json.loads(raw_text)
 
-        # Validate structure
-        return {
-            "match_reasons": result.get("match_reasons", {}),
-            "gap_analysis": result.get("gap_analysis", ""),
-            "profile_tips": result.get("profile_tips", [])[:4],
-        }
+                # Validate structure
+                return {
+                    "match_reasons": result.get("match_reasons", {}),
+                    "gap_analysis": result.get("gap_analysis", ""),
+                    "profile_tips": result.get("profile_tips", [])[:4],
+                }
+            except json.JSONDecodeError as e:
+                print(f"[GEMINI_INSIGHTS] JSON parse error with {model_name}: {e}")
+                last_error = e
+            except Exception as e:
+                print(f"[GEMINI_INSIGHTS] Gemini call failed with {model_name}: {e}")
+                last_error = e
 
-    except json.JSONDecodeError as e:
-        print(f"[GEMINI_INSIGHTS] JSON parse error: {e}")
+        print("[GEMINI_INSIGHTS] All Gemini models failed. Falling back.")
         return _fallback_insights(top_jobs, score_range)
+
     except Exception as e:
-        print(f"[GEMINI_INSIGHTS] Gemini call failed: {e}")
+        print(f"[GEMINI_INSIGHTS] Critical error: {e}")
         traceback.print_exc()
         return _fallback_insights(top_jobs, score_range)
 
