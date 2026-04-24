@@ -1,64 +1,106 @@
 # Smart AI Recruitment Platform
 
-An AI-assisted recruitment platform with three services:
-- `frontend`: React UI for candidates and recruiters
-- `backend`: Node.js/Express API for auth, jobs, and application workflows
-- `ai-service`: Flask microservice for resume parsing, embeddings, and candidate-job matching
+A full-stack AI-powered recruitment platform that connects job seekers with opportunities through intelligent resume parsing, semantic matching, and automated candidate-job alignment.
 
-## Current Repository Status
+## Overview
 
-- Backend and AI service are runnable from this repository.
-- Frontend currently contains `src/` pages/components only. Project scaffold files (for example `package.json`, bundler config) are not present in Git and must be restored/created to run the UI.
+This platform consists of three main services:
 
-## Tech Stack
+| Service | Purpose | Tech Stack |
+|---------|---------|------------|
+| **Frontend** | React UI for candidates and recruiters | React, Vite |
+| **Backend** | REST API for auth, jobs, applications | Node.js, Express, MongoDB |
+| **AI Service** | Resume parsing, embeddings, matching | Python, Flask, sentence-transformers |
 
-- Frontend: React (source-only in current repo)
-- Backend: Node.js, Express, MongoDB (Mongoose), JWT auth
-- AI Service: Python, Flask, sentence-transformers, scikit-learn
+## Features
+
+### Job Seekers
+- User registration and authentication
+- Resume upload and parsing (PDF/DOCX)
+- AI-powered job matching with relevance scores
+- Browse and apply to jobs
+- Profile management
+
+### Recruiters/Admins
+- Job posting management
+- Candidate search and filtering
+- ATS (Applicant Tracking System) scoring
+- Application workflow management
+
+### AI Capabilities
+- **Resume Parsing**: Extract structured data from resumes (experience, education, skills, projects)
+- **Semantic Embeddings**: Generate vector representations for candidate-job matching
+- **ATS Scoring**: Evaluate resume-job compatibility using Gemini AI insights
+- **Job Data Scraping**: Glassdoor dataset tooling for external job collection
 
 ## Project Structure
 
-```text
-.
-|- frontend/
-|  `- src/
-|- backend/
-|  |- config/
-|  |- controllers/
-|  |- middleware/
-|  |- models/
-|  |- routes/
-|  |- .env.example
-|  `- server.js
-|- ai-service/
-|  |- parser/
-|  |- matching/
-|  |- requirements.txt
-|  `- app.py
-`- README.md
+```
+Job-Recruitment/
+├── frontend/                 # React UI (source files)
+│   └── src/
+│       ├── components/      # Reusable UI components
+│       ├── pages/            # Page components
+│       ├── services/         # API service layer
+│       └── context/          # React context providers
+│
+├── backend/                  # Node.js/Express API
+│   ├── config/               # Database configuration
+│   ├── controllers/          # Route handlers
+│   ├── middleware/           # Auth, upload middleware
+│   ├── models/               # Mongoose schemas
+│   ├── routes/               # API route definitions
+│   ├── utils/                # Utility functions
+│   └── server.js             # Entry point
+│
+├── ai-service/               # Python AI microservice
+│   ├── parser/               # Resume parsing modules
+│   │   ├── extractors/       # Section-specific extractors
+│   │   ├── resume_parser.py  # Main parser
+│   │   └── skill_matcher.py  # Skill matching
+│   ├── matching/             # Job matching modules
+│   │   ├── embeddings.py     # Text embeddings
+│   │   ├── matcher.py        # Core matching logic
+│   │   └── ats_gemini.py     # ATS scoring with Gemini
+│   ├── job_data/             # Job data utilities
+│   │   ├── jd_data_extractor.py
+│   │   └── jd_data_cleaner.py
+│   └── app.py                # Flask application
+│
+└── README.md
 ```
 
 ## Prerequisites
 
-- Node.js 18+ and npm
-- Python 3.10+
-- MongoDB Atlas (or MongoDB instance)
+- **Node.js** 18+ and npm
+- **Python** 3.10+
+- **MongoDB** Atlas (or local instance)
+- **Google Gemini API Key** (for ATS scoring)
 
 ## Environment Configuration
 
-1. Backend:
-   - Copy `backend/.env.example` to `backend/.env`.
-   - Set:
-     - `PORT`
-     - `MONGO_URI`
-     - `JWT_SECRET`
-     - `AI_SERVICE_URL` (default `http://localhost:5000`)
-2. AI service:
-   - Uses defaults; optionally create `ai-service/.env` for custom local settings.
+### Backend
+
+Create `backend/.env`:
+
+```env
+PORT=4000
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret_key
+AI_SERVICE_URL=http://localhost:5000
+```
+
+### AI Service
+
+Create `ai-service/.env` (optional):
+
+```env
+GEMINI_API_KEY=your_google_gemini_api_key
+```
 
 ## Local Setup
 
-### 1) Backend
+### 1. Backend
 
 ```bash
 cd backend
@@ -66,97 +108,115 @@ npm install
 npm run dev
 ```
 
-Default URL: `http://localhost:4000`
+Server runs at: `http://localhost:4000`
 
-### 2) AI Service
+### 2. AI Service
 
 ```bash
 cd ai-service
 python -m venv .venv
+
 # Windows
 .venv\Scripts\activate
+
 # macOS/Linux
 source .venv/bin/activate
+
 pip install -r requirements.txt
 python app.py
 ```
 
-Default URL: `http://localhost:5000`
+Service runs at: `http://localhost:5000`
 
-### 3) Frontend
-
-If your frontend scaffold exists locally, run it on port `3000` so backend CORS matches current config:
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-npm start
+npm run dev
 ```
 
-If scaffold files are missing, create/restore a React project in `frontend/`, then keep the existing `src/` folder.
+UI runs at: `http://localhost:5173` (Vite default)
 
-## API Overview
+## API Reference
 
-Backend base URL: `http://localhost:4000`
+### Authentication Endpoints
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me` (protected)
-- `GET /api/jobs`
-- `POST /api/jobs` (recruiter/admin)
-- `POST /api/candidates/upload` (resume upload)
-- `GET /api/candidates/match/:jobId`
-- `POST /api/applications/:jobId` (placeholder, not implemented)
-- `GET /api/applications` (placeholder, not implemented)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | User login |
+| POST | `/api/auth/logout` | User logout |
+| GET | `/api/auth/me` | Get current user (protected) |
 
-AI service base URL: `http://localhost:5000`
+### Job Endpoints
 
-- `GET /` health check
-- `POST /parse` parse resume (`.pdf`/`.docx`)
-- `POST /embed` generate text embeddings
-- `POST /match` compute candidate-job match score
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/jobs` | List all jobs |
+| POST | `/api/jobs` | Create new job (recruiter/admin) |
+| GET | `/api/jobs/:id` | Get job details |
+
+### Candidate Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/candidates/upload` | Upload resume |
+| GET | `/api/candidates/match/:jobId` | Get matching candidates |
+
+### Application Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/applications/:jobId` | Submit application |
+| GET | `/api/applications` | List applications |
+
+### AI Service Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Health check |
+| POST | `/parse` | Parse resume (PDF/DOCX) |
+| POST | `/embed` | Generate embeddings |
+| POST | `/match` | Compute match score |
 
 ## Glassdoor Dataset Tooling
 
-The AI service now includes offline dataset utilities for collecting and
-normalizing external job descriptions:
+The AI service includes utilities for collecting and normalizing external job descriptions:
 
-- `ai-service/job_data/jd_data_extractor.py` uses Selenium plus BeautifulSoup
-  to extract Glassdoor listing cards and detailed job descriptions by
-  default.
-- `ai-service/job_data/jd_data_cleaner.py` removes null-like values,
-  normalizes text fields, converts salary/rating types, and keeps the scraped
-  records consistent for downstream matching.
-
-Example usage:
+### Data Extraction
 
 ```bash
 cd ai-service
 python -m job_data.jd_data_extractor "https://www.glassdoor.com/Job/jobs.htm?sc.keyword=software%20engineer" raw_jobs.json --max-pages 2
+```
+
+### Data Cleaning
+
+```bash
 python -m job_data.jd_data_cleaner raw_jobs.json cleaned_jobs.json
 ```
 
-Notes:
+**Notes:**
+- Selenium 4 uses Selenium Manager (auto driver resolution)
+- Glassdoor markup changes frequently; fallback selectors included
+- Use `--skip-details` for listing-card only data
 
-- Selenium 4 uses Selenium Manager, so if Chrome is installed locally it can
-  often resolve the driver automatically.
-- Glassdoor changes markup frequently. The extractor includes multiple fallback
-  selectors, but selector updates may still be needed over time.
-- Use `--skip-details` only when you explicitly want listing-card data without
-  full descriptions.
-- These tools are currently offline utilities and are not yet wired to a live
-  backend route.
+## Security
 
-## Security Notes
+- Never commit `.env` files or secrets
+- Rotate any leaked credentials immediately
+- Keep `backend/.env.example` as the only tracked template
 
-- Never commit `.env` files or secret credentials.
-- Rotate any leaked credentials immediately (database URIs, JWT secrets, API keys).
-- Keep `backend/.env.example` as the only tracked env template.
+## Suggested Improvements
 
-## Suggested Next Improvements
+- [ ] Add frontend scaffold files for reproducibility
+- [ ] Implement full application workflow
+- [ ] Add automated tests (auth, job posting, AI integration)
+- [ ] Add Docker Compose for one-command startup
+- [ ] Implement real-time notifications
+- [ ] Add job recommendation engine
 
-- Add frontend scaffold files (`package.json`, bundler config, lock file) to make UI reproducible.
-- Implement application routes in `backend/routes/application.routes.js`.
-- Add automated tests for auth, job posting, and AI integration flows.
-- Add Docker compose for one-command local startup.
+## License
+
+MIT
