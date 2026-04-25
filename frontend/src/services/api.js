@@ -53,4 +53,9 @@ export const checkATSScore = (formData) =>
     },
   });
 
+// Notifications
+export const getNotifications = () => API.get("/notifications");
+export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
+export const markAllNotificationsRead = () => API.put("/notifications/read-all");
+
 export default API;

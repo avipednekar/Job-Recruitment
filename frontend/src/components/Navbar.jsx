@@ -7,6 +7,7 @@ import Button from "./ui/Button";
 import Badge from "./ui/Badge";
 import { useAuth } from "../context/useAuth";
 import { cn } from "../utils/cn";
+import NotificationDropdown from "./NotificationDropdown";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -62,7 +63,8 @@ const Navbar = () => {
             <div className="h-7 w-px bg-border" />
             {isAuthenticated ? (
               <div className="flex items-center gap-2">
-                <span className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-2 py-1.5">
+                <NotificationDropdown />
+                <span className="hidden sm:flex items-center gap-2 rounded-xl border border-border px-2 py-1.5 ml-2">
                   <span className="grid size-8 place-items-center rounded-full bg-primary text-white text-sm font-bold">
                     {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </span>
