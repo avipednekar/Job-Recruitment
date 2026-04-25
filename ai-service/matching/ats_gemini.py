@@ -3,7 +3,7 @@ import json
 import traceback
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODELS_ENV = os.getenv("GEMINI_MODELS", "gemini-2.5-flash,gemini-3-flash-preview,gemini-3.1-flash-lite-preview")
+GEMINI_MODELS_ENV = os.getenv("GEMINI_MODELS", "gemini-3-flash-preview,gemini-3.1-flash-lite-preview")
 GEMINI_MODELS = [m.strip() for m in GEMINI_MODELS_ENV.split(",") if m.strip()]
 
 ATS_SYSTEM_PROMPT = """You are an expert Application Tracking System (ATS) with deep understanding of the tech industry, software engineering, and data science. 
