@@ -92,6 +92,7 @@ function App() {
               <Route path="/profile" element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
 
               {/* Legacy redirect */}
+              <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
               <Route path="/profile/setup" element={<Navigate to="/setup-profile" replace />} />
               <Route path="/resume-parser" element={<Navigate to="/setup-profile" replace />} />
             </Routes>

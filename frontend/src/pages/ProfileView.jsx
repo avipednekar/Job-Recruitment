@@ -74,9 +74,9 @@ const formatRole = (role) => {
 
 function ProfileMetric({ label, value }) {
   return (
-    <div className="rounded-2xl bg-surface-2 p-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-text-primary">{value}</p>
+    <div className="rounded-2xl bg-surface-2 dark:bg-surface-3 p-5 transition-all hover:scale-[1.02]">
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-text-primary">{value}</p>
     </div>
   );
 }
@@ -98,10 +98,10 @@ function DashboardNavButton({ active, icon, label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors ${
+      className={`relative flex w-full items-center gap-3 rounded-xl px-4 py-3.5 text-left text-sm font-semibold transition-all ${
         active
-          ? "bg-primary text-white shadow-sm"
-          : "bg-surface-2 text-text-secondary hover:bg-surface-3 hover:text-text-primary"
+          ? "bg-primary/10 dark:bg-primary/20 text-primary font-bold after:content-[''] after:absolute after:right-0 after:h-7 after:w-1 after:bg-accent after:rounded-full"
+          : "text-text-secondary hover:bg-surface-3 hover:text-text-primary hover:translate-x-1"
       }`}
     >
       <IconComponent className="size-4" />
@@ -269,6 +269,26 @@ function computeInsights(profile) {
   const projects = Array.isArray(profile?.projects) ? profile.projects : [];
   const summary = profile?.summary || "";
 
+  // Calculate total years of experience from date ranges
+  let totalMonths = 0;
+  for (const exp of experience) {
+    const start = exp.startDate || exp.start_date;
+    const end = exp.endDate || exp.end_date || exp.current ? null : undefined;
+    if (!start) continue;
+    const startDate = new Date(start);
+    const endDate = end ? new Date(end) : (exp.current ? new Date() : new Date());
+    if (Number.isNaN(startDate.getTime())) continue;
+    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12
+      + (endDate.getMonth() - startDate.getMonth());
+    totalMonths += Math.max(0, months);
+  }
+  const totalYears = Math.max(0, Math.round(totalMonths / 12));
+  const experienceLabel = experience.length === 0
+    ? "0 yrs"
+    : totalYears > 0
+      ? `${totalYears}+ yrs`
+      : `< 1 yr`;
+
   const checks = [
     { label: "Contact details", complete: Boolean(profile?.email && profile?.phone) },
     { label: "Professional summary", complete: summary.trim().length >= 80 },
@@ -288,7 +308,7 @@ function computeInsights(profile) {
     stats: [
       { label: "Skills", value: skills.length },
       { label: "Projects", value: projects.length },
-      { label: "Experience", value: `${Math.max(1, experience.length)}+ yrs` },
+      { label: "Experience", value: experienceLabel },
       { label: "Sections", value: completedChecks },
     ],
   };
@@ -510,17 +530,22 @@ export default function ProfileView() {
       <section className="section-container py-8 sm:py-12">
         <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="space-y-6">
-            <Card className="hidden p-5 xl:block xl:sticky xl:top-28">
-              <div className="space-y-5">
+            <Card className="hidden p-6 xl:block xl:sticky xl:top-28 bg-surface-lighter dark:bg-surface-2">
+              <div className="space-y-6">
                 <div>
-                  <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">
-                    <LayoutDashboard className="size-4" /> Dashboard
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="grid size-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-white shadow-lg shadow-primary/20">
+                      {normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <h1 className="font-display text-lg font-bold text-text-primary leading-tight">
+                        {normalizedDraft.name || user?.name || "Your dashboard"}
+                      </h1>
+                      <p className="text-xs text-text-tertiary font-medium">Job Seeker</p>
+                    </div>
                   </div>
-                  <h1 className="font-display text-3xl text-text-primary">
-                    {normalizedDraft.name || user?.name || "Your dashboard"}
-                  </h1>
-                  <p className="mt-2 text-sm text-text-secondary">
-                    Manage your profile, applications, recommendations, and settings from one place.
+                  <p className="text-sm text-text-secondary leading-relaxed">
+                    Manage your profile, applications, recommendations, and settings.
                   </p>
                 </div>
 
@@ -536,17 +561,18 @@ export default function ProfileView() {
                   ))}
                 </div>
 
-                <div className="rounded-2xl bg-surface-2 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">
+                <div className="rounded-2xl bg-gradient-to-br from-primary to-primary-strong p-5 text-white relative overflow-hidden">
+                  <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-accent/20 blur-2xl rounded-full"></div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">
                     Profile strength
                   </p>
                   <div className="mt-3 flex items-end justify-between gap-3">
-                    <p className="text-3xl font-semibold text-text-primary">{insights.completionScore}%</p>
-                    <Badge tone="success">{applications.length} applications</Badge>
+                    <p className="text-3xl font-bold">{insights.completionScore}%</p>
+                    <Badge tone="success">{applications.length} apps</Badge>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3">
+                  <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-white/20">
                     <div
-                      className="h-full rounded-full bg-linear-to-r from-primary to-accent transition-all duration-700"
+                      className="h-full rounded-full bg-accent shadow-[0_0_12px_rgba(0,188,212,0.5)] transition-all duration-700"
                       style={{ width: `${insights.completionScore}%` }}
                     />
                   </div>
@@ -555,20 +581,24 @@ export default function ProfileView() {
             </Card>
 
             <div className="flex gap-2 overflow-x-auto pb-1 xl:hidden">
-              {DASHBOARD_SECTIONS.map((section) => (
-                <button
-                  key={section.key}
-                  type="button"
-                  onClick={() => handleSectionChange(section.key)}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-                    activeSection === section.key
-                      ? "bg-primary text-white"
-                      : "bg-surface-2 text-text-secondary"
-                  }`}
-                >
-                  {section.label}
-                </button>
-              ))}
+              {DASHBOARD_SECTIONS.map((section) => {
+                const IconComponent = section.icon;
+                return (
+                  <button
+                    key={section.key}
+                    type="button"
+                    onClick={() => handleSectionChange(section.key)}
+                    className={`whitespace-nowrap flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-all ${
+                      activeSection === section.key
+                        ? "bg-primary text-white shadow-lg shadow-primary/20"
+                        : "bg-surface-lighter dark:bg-surface-2 text-text-secondary"
+                    }`}
+                  >
+                    <IconComponent className="size-4" />
+                    {section.label}
+                  </button>
+                );
+              })}
             </div>
           </aside>
 
@@ -576,33 +606,56 @@ export default function ProfileView() {
             {activeSection === "profile" ? (
               <>
                 <Card className="overflow-hidden">
-                  <div className="bg-linear-to-br from-[#f6f9ff] via-white to-[#eef8f4] p-8 sm:p-10">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className="grid size-18 place-items-center rounded-3xl bg-primary text-2xl font-bold text-white shadow-sm">
+                  <div className="bg-gradient-to-br from-primary to-primary-strong p-8 sm:p-10 relative overflow-hidden">
+                    {/* Decorative blurs */}
+                    <div className="absolute -right-16 -top-16 w-64 h-64 bg-accent/15 blur-[60px] rounded-full"></div>
+                    <div className="absolute left-1/2 bottom-0 w-48 h-48 bg-white/5 blur-[40px] rounded-full"></div>
+
+                    <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
+                      <div className="flex items-start gap-5">
+                        <div className="grid size-20 place-items-center rounded-3xl bg-white/10 backdrop-blur-sm text-3xl font-bold text-white shadow-2xl border-2 border-white/10">
                           {normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"}
                         </div>
                         <div className="min-w-0">
                           <div className="mb-3 flex flex-wrap gap-2">
-                            <Badge tone="brand">Job seeker</Badge>
-                            <Badge tone="success">Profile strength {insights.completionScore}%</Badge>
+                            <span className="bg-accent/20 backdrop-blur-sm text-accent px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Job Seeker</span>
+                            <span className="bg-white/10 backdrop-blur-sm text-white/90 px-3 py-1 rounded-full text-xs font-bold">
+                              {insights.completionScore}% Complete
+                            </span>
                           </div>
-                          <h2 className="font-display text-4xl text-text-primary">
+                          <h2 className="font-display text-3xl sm:text-4xl text-white font-bold">
                             {normalizedDraft.name || user?.name || "Your profile"}
                           </h2>
                           {normalizedDraft.title ? (
-                            <p className="mt-1 text-lg font-medium text-primary">{normalizedDraft.title}</p>
+                            <p className="mt-1 text-lg font-medium text-accent">{normalizedDraft.title}</p>
                           ) : null}
-                          <p className="mt-3 max-w-2xl leading-7 text-text-secondary">
+                          <p className="mt-3 max-w-2xl leading-7 text-white/70">
                             {normalizedDraft.summary || "Build out your profile to unlock stronger recommendations and better application context."}
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-3 sm:grid-cols-4">
+                    {/* Profile strength bar */}
+                    <div className="relative z-10 mt-6 max-w-lg">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="text-white/80 font-medium">Profile Strength</span>
+                        <span className="text-accent font-bold">{insights.completionScore}%</span>
+                      </div>
+                      <div className="h-3 w-full bg-white/15 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-accent shadow-[0_0_15px_rgba(0,188,212,0.5)] rounded-full transition-all duration-700"
+                          style={{ width: `${insights.completionScore}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="relative z-10 mt-6 grid gap-3 sm:grid-cols-4">
                       {insights.stats.map((item) => (
-                        <ProfileMetric key={item.label} label={item.label} value={item.value} />
+                        <div key={item.label} className="rounded-2xl bg-white/10 backdrop-blur-sm p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">{item.label}</p>
+                          <p className="mt-2 text-2xl font-bold text-white">{item.value}</p>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -627,11 +680,11 @@ export default function ProfileView() {
                     />
 
                     {isProfileDirty ? (
-                      <div className="sticky bottom-4 mt-8 rounded-2xl border border-primary/20 bg-white/95 p-4 shadow-lg backdrop-blur sm:flex sm:items-center sm:justify-between">
+                      <div className="sticky bottom-4 mt-8 rounded-[1.5rem] bg-white/90 dark:bg-surface-3/90 p-5 shadow-[0_20px_40px_rgba(27,27,33,0.1)] backdrop-blur-xl sm:flex sm:items-center sm:justify-between">
                         <div>
-                          <p className="font-semibold text-text-primary">Unsaved profile changes</p>
+                          <p className="font-bold text-text-primary">Unsaved profile changes</p>
                           <p className="text-sm text-text-secondary">
-                            Save to refresh your profile and recommendations with the latest details.
+                            Save to refresh your profile and recommendations.
                           </p>
                         </div>
                         <div className="mt-4 flex gap-3 sm:mt-0">
@@ -647,68 +700,46 @@ export default function ProfileView() {
                   </Card>
 
                   <div className="space-y-6">
-                    <Card className="p-6">
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <h3 className="font-display text-xl text-text-primary">Profile completion</h3>
-                        <span className="text-2xl font-semibold text-text-primary">{insights.completionScore}%</span>
-                      </div>
-                      <div className="mb-6 h-3 overflow-hidden rounded-full bg-surface-2">
-                        <div
-                          className="h-full rounded-full bg-linear-to-r from-primary to-accent transition-all duration-700"
-                          style={{ width: `${insights.completionScore}%` }}
-                        />
-                      </div>
-                      <div className="space-y-3">
+                    {/* Profile Completion - Stitch deep purple card */}
+                    <div className="bg-gradient-to-br from-[#1f005d] to-[#360094] rounded-[2rem] p-7 text-white relative overflow-hidden">
+                      <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-accent/20 blur-3xl rounded-full"></div>
+                      <h3 className="text-lg font-display font-bold mb-5">Boost Your Profile</h3>
+                      <ul className="space-y-4">
                         {insights.checks.map((check) => (
-                          <div
-                            key={check.label}
-                            className="flex items-center justify-between rounded-2xl border border-border bg-surface-2 px-4 py-3"
-                          >
-                            <span className="text-sm text-text-primary">{check.label}</span>
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                check.complete
-                                  ? "bg-success/10 text-success"
-                                  : "bg-amber-100 text-amber-700"
+                          <li key={check.label} className="flex items-start gap-3">
+                            <CheckCircle2
+                              className={`size-5 mt-0.5 flex-shrink-0 ${
+                                check.complete ? "text-accent" : "text-white/30"
                               }`}
-                            >
-                              {check.complete ? "Done" : "Missing"}
-                            </span>
+                            />
+                            <div className={check.complete ? "opacity-50 line-through text-sm" : ""}>
+                              <p className="text-sm font-semibold">{check.label}</p>
+                              {!check.complete && (
+                                <p className="text-[10px] text-white/50 uppercase font-bold tracking-wider">+{Math.round(100 / insights.checks.length)}% Strength</p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Contact Snapshot - Stitch tonal card */}
+                    <Card className="p-6 bg-surface-lighter dark:bg-surface-2">
+                      <h3 className="mb-5 text-lg font-display font-bold text-primary">Contact</h3>
+                      <div className="space-y-3">
+                        {[
+                          { icon: UserRound, label: "Name", value: normalizedDraft.name || user?.name || "Not added yet" },
+                          { icon: Mail, label: "Email", value: normalizedDraft.email || user?.email || "Not added yet" },
+                          { icon: MapPin, label: "Location", value: normalizedDraft.location || "Not added yet" },
+                        ].map((item) => (
+                          <div key={item.label} className="flex items-center gap-4 p-4 bg-white dark:bg-surface-3 rounded-2xl">
+                            <item.icon className="size-5 text-text-tertiary" />
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary">{item.label}</p>
+                              <p className="text-sm font-medium text-text-primary mt-0.5">{item.value}</p>
+                            </div>
                           </div>
                         ))}
-                      </div>
-                    </Card>
-
-                    <Card className="p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-text-primary">Contact snapshot</h3>
-                      <div className="space-y-4">
-                        <div className="flex items-start gap-3">
-                          <div className="grid size-10 place-items-center rounded-xl bg-surface-2 text-primary">
-                            <UserRound className="size-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Name</p>
-                            <p className="mt-1 text-sm text-text-primary">{normalizedDraft.name || user?.name || "Not added yet"}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="grid size-10 place-items-center rounded-xl bg-surface-2 text-primary">
-                            <Mail className="size-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Email</p>
-                            <p className="mt-1 text-sm text-text-primary">{normalizedDraft.email || user?.email || "Not added yet"}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <div className="grid size-10 place-items-center rounded-xl bg-surface-2 text-primary">
-                            <MapPin className="size-4" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Location</p>
-                            <p className="mt-1 text-sm text-text-primary">{normalizedDraft.location || "Not added yet"}</p>
-                          </div>
-                        </div>
                       </div>
                     </Card>
                   </div>
@@ -717,36 +748,33 @@ export default function ProfileView() {
             ) : null}
 
             {activeSection === "applications" ? (
-              <Card className="p-6 sm:p-8">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                   <div>
-                    <h2 className="font-display text-3xl text-text-primary">Applied Jobs</h2>
+                    <h2 className="font-display text-2xl font-bold text-text-primary">Applied Jobs</h2>
                     <p className="mt-2 text-text-secondary">
                       Track where each application sits in your pipeline.
                     </p>
                   </div>
-                  <Badge tone="brand">{applications.length} total</Badge>
+                  <div className="flex bg-surface dark:bg-surface-3 rounded-full p-1 shadow-sm">
+                    {APPLICATION_FILTERS.slice(0, 4).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setApplicationFilter(filter)}
+                        className={`px-5 py-1.5 rounded-full text-sm font-semibold transition-all ${
+                          applicationFilter === filter
+                            ? "bg-white dark:bg-surface-lighter text-primary shadow-sm"
+                            : "text-text-secondary hover:text-text-primary"
+                        }`}
+                      >
+                        {filter === "all" ? "All" : filter[0].toUpperCase() + filter.slice(1)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {APPLICATION_FILTERS.map((filter) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      onClick={() => setApplicationFilter(filter)}
-                      className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        applicationFilter === filter
-                          ? "bg-primary text-white"
-                          : "bg-surface-2 text-text-secondary hover:bg-surface-3"
-                      }`}
-                    >
-                      {filter === "all" ? "All" : filter[0].toUpperCase() + filter.slice(1)}{" "}
-                      {filter === "all" ? applications.length : applicationCounts[filter] || 0}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-6 space-y-4">
+                <div className="space-y-4">
                   {applicationsLoading ? (
                     <div className="flex min-h-48 items-center justify-center">
                       <div className="size-10 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
@@ -755,37 +783,36 @@ export default function ProfileView() {
                     filteredApplications.map((application) => {
                       const job = application.job || {};
                       return (
-                        <Card key={application._id} className="border-border p-5">
-                          <div className="flex flex-wrap items-start justify-between gap-4">
-                            <div className="min-w-0">
-                              <div className="mb-2 flex flex-wrap items-center gap-2">
-                                <span
-                                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                                    STATUS_STYLES[application.status] || "bg-surface-2 text-text-secondary"
-                                  }`}
-                                >
-                                  {application.status || "applied"}
-                                </span>
-                                <span className="text-xs text-text-secondary">
-                                  Applied {formatDate(application.createdAt)}
-                                </span>
-                              </div>
-                              <h3 className="text-lg font-semibold text-text-primary">
-                                {job.title || "Job unavailable"}
-                              </h3>
-                              <p className="mt-1 text-sm text-text-secondary">{job.company || "Company unavailable"}</p>
-                              <p className="mt-2 text-sm text-text-secondary">{job.location || "Flexible location"}</p>
+                        <div key={application._id} className="bg-white dark:bg-surface-3 p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-6 hover:translate-x-2 transition-transform cursor-pointer">
+                          <div className="flex items-center gap-5 w-full sm:w-auto">
+                            <div className="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                              <Briefcase className="size-6" />
                             </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-text-primary line-clamp-1">{job.title || "Job unavailable"}</h4>
+                              <p className="text-sm text-text-secondary">
+                                {job.company || "Company unavailable"} • Applied {formatDate(application.createdAt)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-6 w-full sm:w-auto justify-between">
+                            <span
+                              className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                                STATUS_STYLES[application.status] || "bg-surface-2 text-text-secondary"
+                              }`}
+                            >
+                              {application.status || "applied"}
+                            </span>
                             {job?._id ? (
                               <Link
                                 to={`/jobs/${job._id}`}
-                                className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:text-primary-strong"
+                                className="text-text-tertiary hover:text-primary transition-colors"
                               >
-                                View job <ExternalLink className="size-4" />
+                                <ExternalLink className="size-5" />
                               </Link>
                             ) : null}
                           </div>
-                        </Card>
+                        </div>
                       );
                     })
                   ) : (
@@ -800,7 +827,7 @@ export default function ProfileView() {
                     />
                   )}
                 </div>
-              </Card>
+              </div>
             ) : null}
 
             {activeSection === "recommendations" ? (
@@ -850,59 +877,57 @@ export default function ProfileView() {
 
             {activeSection === "settings" ? (
               <div className="space-y-6">
-                <Card className="p-6 sm:p-8">
-                  <h2 className="font-display text-3xl text-text-primary">Settings</h2>
+                <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+                  <h2 className="font-display text-2xl font-bold text-text-primary">Settings</h2>
                   <p className="mt-2 text-text-secondary">
-                    Manage your account view and quick preferences available in the app today.
+                    Manage your account and preferences.
                   </p>
 
                   <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                    <Card className="border-border bg-surface-2 p-5">
-                      <h3 className="text-lg font-semibold text-text-primary">Account summary</h3>
-                      <div className="mt-4 space-y-4 text-sm">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Name</p>
-                          <p className="mt-1 text-text-primary">{user?.name || normalizedDraft.name || "Not available"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Email</p>
-                          <p className="mt-1 text-text-primary">{user?.email || normalizedDraft.email || "Not available"}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-secondary">Role</p>
-                          <p className="mt-1 text-text-primary">{formatRole(user?.role)}</p>
-                        </div>
+                    <div className="bg-white dark:bg-surface-3 rounded-[1.5rem] p-6">
+                      <h3 className="text-lg font-display font-bold text-text-primary">Account</h3>
+                      <div className="mt-5 space-y-4">
+                        {[
+                          { label: "Name", value: user?.name || normalizedDraft.name || "Not available" },
+                          { label: "Email", value: user?.email || normalizedDraft.email || "Not available" },
+                          { label: "Role", value: formatRole(user?.role) },
+                        ].map((item) => (
+                          <div key={item.label} className="p-4 bg-surface-lighter dark:bg-surface-2 rounded-2xl">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary">{item.label}</p>
+                            <p className="mt-1 text-sm font-medium text-text-primary">{item.value}</p>
+                          </div>
+                        ))}
                       </div>
-                    </Card>
+                    </div>
 
-                    <Card className="border-border bg-surface-2 p-5">
-                      <h3 className="text-lg font-semibold text-text-primary">Appearance</h3>
-                      <div className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-border bg-white/70 px-4 py-3 dark:bg-surface/40">
+                    <div className="bg-white dark:bg-surface-3 rounded-[1.5rem] p-6">
+                      <h3 className="text-lg font-display font-bold text-text-primary">Appearance</h3>
+                      <div className="mt-5 flex items-center justify-between gap-4 p-4 bg-surface-lighter dark:bg-surface-2 rounded-2xl">
                         <div>
                           <p className="font-medium text-text-primary">Theme</p>
                           <p className="text-sm text-text-secondary">
-                            Switch between light and dark mode for the dashboard.
+                            Switch between light and dark mode.
                           </p>
                         </div>
                         <ThemeToggle />
                       </div>
-                    </Card>
+                    </div>
                   </div>
-                </Card>
+                </div>
 
-                <Card className="p-6 sm:p-8">
+                <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-semibold text-text-primary">Session</h3>
+                      <h3 className="text-lg font-display font-bold text-text-primary">Session</h3>
                       <p className="mt-1 text-sm text-text-secondary">
-                        End your current session safely from the dashboard.
+                        End your current session safely.
                       </p>
                     </div>
                     <Button variant="secondary" onClick={handleLogout}>
-                      <LogOut className="size-4" /> Logout
+                      <LogOut className="size-4" /> Sign Out
                     </Button>
                   </div>
-                </Card>
+                </div>
               </div>
             ) : null}
           </div>

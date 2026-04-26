@@ -17,6 +17,7 @@ const Navbar = () => {
 
   const closeMenu = () => setIsOpen(false);
   const profileLabel = user?.role === "job_seeker" ? "Dashboard" : "Profile";
+  const profileRoute = "/profile";
 
   const handleLogout = async () => {
     await logout();
@@ -52,7 +53,7 @@ const Navbar = () => {
               ATS Checker
             </Link>
             {isAuthenticated ? (
-              <Link className={linkClass("/profile")} to="/profile">
+              <Link className={linkClass(profileRoute)} to={profileRoute}>
                 {profileLabel}
               </Link>
             ) : null}
@@ -113,7 +114,7 @@ const Navbar = () => {
             ATS Checker
           </Link>
           {isAuthenticated ? (
-            <Link to="/profile" className={cn("block", linkClass("/profile"))} onClick={closeMenu}>
+            <Link to={profileRoute} className={cn("block", linkClass(profileRoute))} onClick={closeMenu}>
               {profileLabel}
             </Link>
           ) : null}
