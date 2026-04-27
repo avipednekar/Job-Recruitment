@@ -12,6 +12,7 @@ import Register from "./pages/Register";
 import ProfileSetup from "./pages/ProfileSetup";
 import ProfileView from "./pages/ProfileView";
 import ATSChecker from "./pages/ATSChecker";
+import VerifyOTP from "./pages/VerifyOTP";
 import NotFound from "./pages/NotFound";
 
 // ─────────────────────────────────────────────
@@ -85,6 +86,7 @@ function App() {
               {/* Guest-only (redirect if logged in) */}
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
               <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
+              <Route path="/verify-otp" element={<GuestRoute><VerifyOTP /></GuestRoute>} />
 
               {/* Onboarding (requires auth, skips profile-complete check) */}
               <Route path="/setup-profile" element={<SetupRoute><ProfileSetup /></SetupRoute>} />

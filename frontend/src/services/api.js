@@ -19,6 +19,8 @@ export const loginUser = (data) => API.post("/auth/login", data);
 export const registerUser = (data) => API.post("/auth/register", data);
 export const logoutUser = () => API.post("/auth/logout");
 export const getMe = () => API.get("/auth/me");
+export const verifyOTP = (data) => API.post("/auth/verify-otp", data);
+export const resendOTP = (data) => API.post("/auth/resend-otp", data);
 
 // Resume upload (returns parsed data from AI service)
 export const uploadResume = (formData) => API.post("/candidates/upload", formData);

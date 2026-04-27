@@ -34,9 +34,13 @@ const Register = () => {
 
     setLoading(true);
     try {
-      await register(formData.name, formData.email, formData.password, formData.role);
-      toast.success("Account created successfully");
-      navigate("/setup-profile");
+      const data = await register(formData.name, formData.email, formData.password, formData.role);
+      if (data.requiresVerification) {
+        toast.success("Verification code sent to your email!");
+        navigate("/verify-otp", { state: { email: data.email } });
+      } else {
+        navigate("/setup-profile");
+      }
     } catch (error) {
       toast.error(error.response?.data?.error || "Registration failed");
     } finally {

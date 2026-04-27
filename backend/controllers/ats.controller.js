@@ -80,6 +80,28 @@ export const checkATSScore = async (req, res) => {
     }
 
     const matchResult = matchRes.data.match_result;
+    const missingSkills = matchResult.missing_skills || [];
+
+    // 3. Fetch learning resources for missing skills (best-effort, async)
+    let learningResources = [];
+    if (missingSkills.length > 0) {
+      try {
+        const resourcesRes = await axios.post(
+          `${AI_SERVICE_URL}/skill_resources`,
+          {
+            missing_skills: missingSkills,
+            target_role: matchResult.job_title || "",
+          },
+          { timeout: 30000 },
+        );
+        if (resourcesRes.data?.success && Array.isArray(resourcesRes.data.resources)) {
+          learningResources = resourcesRes.data.resources;
+        }
+      } catch (resErr) {
+        console.warn("[ATS Checker] Could not fetch learning resources:", resErr.message);
+        // Graceful fallback — return ATS result without resources
+      }
+    }
 
     res.json({
       success: true,
@@ -92,7 +114,8 @@ export const checkATSScore = async (req, res) => {
         breakdown: matchResult.breakdown,
         match_reasons: matchResult.match_reasons,
       },
-      missing_skills: matchResult.missing_skills || [],
+      missing_skills: missingSkills,
+      learning_resources: learningResources,
     });
 
   } catch (error) {

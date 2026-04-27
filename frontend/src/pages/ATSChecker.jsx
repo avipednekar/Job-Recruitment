@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, FileText, CheckCircle2, BarChart, AlertCircle, FileUp } from "lucide-react";
+import { Upload, FileText, CheckCircle2, BarChart, AlertCircle, FileUp, ExternalLink, BookOpen, Clock, GraduationCap } from "lucide-react";
 import toast from "react-hot-toast";
 import { checkATSScore } from "../services/api";
 import Card from "../components/ui/Card";
@@ -243,6 +243,69 @@ export default function ATSChecker() {
                           {skill}
                         </Badge>
                       ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Learning Resources */}
+                {result.learning_resources?.length > 0 && (
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-2 flex items-center gap-2 text-text-primary">
+                      <BookOpen className="size-5 text-primary" />
+                      Learning Path
+                    </h3>
+                    <p className="text-sm text-text-secondary mb-5">
+                      Curated resources to close your skill gaps and strengthen your application:
+                    </p>
+                    <div className="space-y-3">
+                      {result.learning_resources.map((resource, i) => {
+                        const difficultyColors = {
+                          Beginner: "bg-emerald-50 text-emerald-700 border-emerald-200",
+                          Intermediate: "bg-amber-50 text-amber-700 border-amber-200",
+                          Advanced: "bg-rose-50 text-rose-700 border-rose-200",
+                        };
+                        return (
+                          <a
+                            key={i}
+                            href={resource.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block p-4 rounded-xl border border-border bg-surface-light hover:bg-surface hover:border-primary/30 hover:shadow-soft transition-all group"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs font-semibold rounded-md">
+                                    {resource.skill}
+                                  </span>
+                                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md border ${difficultyColors[resource.difficulty] || difficultyColors.Intermediate}`}>
+                                    {resource.difficulty}
+                                  </span>
+                                </div>
+                                <p className="font-semibold text-text-primary group-hover:text-primary transition-colors truncate">
+                                  {resource.course}
+                                </p>
+                                <div className="flex items-center gap-3 mt-1.5 text-xs text-text-secondary">
+                                  <span className="inline-flex items-center gap-1">
+                                    <GraduationCap className="size-3.5" />
+                                    {resource.platform}
+                                  </span>
+                                  {resource.estimated_hours && (
+                                    <span className="inline-flex items-center gap-1">
+                                      <Clock className="size-3.5" />
+                                      ~{resource.estimated_hours}h
+                                    </span>
+                                  )}
+                                </div>
+                                {resource.reason && (
+                                  <p className="text-xs text-text-tertiary mt-1.5 line-clamp-1">{resource.reason}</p>
+                                )}
+                              </div>
+                              <ExternalLink className="size-4 text-text-tertiary group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
+                            </div>
+                          </a>
+                        );
+                      })}
                     </div>
                   </Card>
                 )}

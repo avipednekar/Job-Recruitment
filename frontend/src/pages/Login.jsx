@@ -62,7 +62,13 @@ const Login = () => {
       const data = await login(formData.email, formData.password);
       navigate(data.user.profileComplete ? "/" : "/setup-profile");
     } catch (error) {
-      toast.error(error.response?.data?.error || "Login failed");
+      const errData = error.response?.data;
+      if (errData?.requiresVerification) {
+        toast.error("Please verify your email first");
+        navigate("/verify-otp", { state: { email: errData.email } });
+      } else {
+        toast.error(errData?.error || "Login failed");
+      }
     } finally {
       setLoading(false);
     }

@@ -366,6 +366,27 @@ def recommend_insights():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# -────────────────────────────────────────────
+# 8. Skill Gap Learning Resources
+# -────────────────────────────────────────────
+@app.route("/skill_resources", methods=["POST"])
+def skill_resources():
+    """Given missing skills, return curated learning resources."""
+    from matching.skill_resources import generate_skill_resources
+
+    data = request.json or {}
+    missing_skills = data.get("missing_skills", [])
+    target_role = data.get("target_role", "")
+
+    if not missing_skills or not isinstance(missing_skills, list):
+        return jsonify({"error": "Missing required field: missing_skills (array)"}), 400
+
+    try:
+        resources = generate_skill_resources(missing_skills, target_role)
+        return jsonify({"success": True, "resources": resources})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)

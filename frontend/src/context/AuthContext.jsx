@@ -38,9 +38,7 @@ export const AuthProvider = ({ children }) => {
 
     const register = async (name, email, password, role) => {
         const res = await registerUser({ name, email, password, role });
-        localStorage.setItem("token", res.data.token);
-        setUser(res.data.user);
-        toast.success("Account created successfully!");
+        // Registration now requires OTP verification — don't auto-login
         return res.data;
     };
 
