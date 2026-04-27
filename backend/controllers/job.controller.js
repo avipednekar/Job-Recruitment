@@ -481,12 +481,17 @@ export const getJobRecommendations = async (req, res) => {
         ]),
       );
 
-      const aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
-        candidate_data: candidate,
-        jobs_list: internalJobs,
-      });
+      let aiResponse = null;
+      try {
+        aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
+          candidate_data: candidate,
+          jobs_list: internalJobs,
+        });
+      } catch (err) {
+        console.warn("[Job Recs] AI service unreachable for internal ranking, using local fallback.");
+      }
 
-      if (aiResponse.data.success && aiResponse.data.ranked_jobs) {
+      if (aiResponse?.data?.success && aiResponse.data.ranked_jobs) {
         return aiResponse.data.ranked_jobs.map(ranked => {
           const fullJob = internalJobs.find(j => j._id.toString() === ranked.job_id);
           const localRanking = fullJob ? internalLocalRankings.get(fullJob._id.toString()) : null;
@@ -510,17 +515,34 @@ export const getJobRecommendations = async (req, res) => {
           );
       }
 
-      // Fallback: just return latest jobs if AI fails
-      return internalJobs.sort((a, b) => b.createdAt - a.createdAt);
+      // Fallback: Use local ranking heuristic if AI fails
+      return internalJobs
+        .map(job => {
+          const localRanking = internalLocalRankings.get(job._id.toString());
+          if (localRanking?.excluded) return null;
+          return {
+            ...job,
+            match_metrics: { overall_match_score: localRanking.score },
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => (b.match_metrics?.overall_match_score || 0) - (a.match_metrics?.overall_match_score || 0));
     })();
 
-    const externalScrapingPromise = fetchRecommendedExternalJobs({
-      candidate,
-      candidateSkills,
-      candidateLocation,
-      candidateYears,
-      inferredRole,
-    });
+    const externalScrapingPromise = (async () => {
+      try {
+        return await fetchRecommendedExternalJobs({
+          candidate,
+          candidateSkills,
+          candidateLocation,
+          candidateYears,
+          inferredRole,
+        });
+      } catch (err) {
+        console.warn("[Job Recs] AI service unreachable for external scraping, returning empty.");
+        return [];
+      }
+    })();
 
     // Wait for both to complete — neither blocks the other
     const [internalResult, externalResult] = await Promise.allSettled([
@@ -532,10 +554,10 @@ export const getJobRecommendations = async (req, res) => {
     const externalJobs = externalResult.status === "fulfilled" ? externalResult.value : [];
 
     if (internalResult.status === "rejected") {
-      console.error("AI Recommendation Error:", internalResult.reason?.message);
+      console.error("AI Recommendation Error:", internalResult.reason?.response?.data || internalResult.reason?.stack || internalResult.reason);
     }
     if (externalResult.status === "rejected") {
-      console.error("External Recommendation Error:", externalResult.reason?.message);
+      console.error("External Recommendation Error:", externalResult.reason?.response?.data || externalResult.reason?.stack || externalResult.reason);
     }
 
     // Build profile completeness info
