@@ -1,27 +1,12 @@
 import { useState } from "react";
-import { Upload, FileText, CheckCircle2, XCircle, BarChart, ChevronRight, AlertCircle, FileUp, Target } from "lucide-react";
+import { Upload, FileText, CheckCircle2, BarChart, AlertCircle, FileUp } from "lucide-react";
 import toast from "react-hot-toast";
 import { checkATSScore } from "../services/api";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import { getMatchColor, MatchBadge } from "../utils/job-utils";
 
-function getMatchColor(score) {
-  if (score >= 60) return { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", label: "Strong match" };
-  if (score >= 35) return { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Good fit" };
-  return { bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", label: "Low match" };
-}
-
-function MatchBadge({ score, className = "" }) {
-  if (typeof score !== "number" || score === 0) return null;
-  const match = getMatchColor(score);
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${match.bg} ${match.text} ${match.border} ${className}`}>
-      <Target className="size-3" />
-      {Math.round(score)}% — {match.label}
-    </span>
-  );
-}
 
 export default function ATSChecker() {
   const [file, setFile] = useState(null);

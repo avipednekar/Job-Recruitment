@@ -42,8 +42,6 @@ export const fetchRecommendationInsights = (topJobs) =>
 
 // External Jobs
 export const fetchExternalJobs = (params = {}) => API.get("/external-jobs", { params });
-export const scrapeDirectBoards = (urls, extract = false) =>
-  API.post("/external-jobs/direct", { urls, extract });
 
 // ATS Checker
 export const checkATSScore = (formData) =>
@@ -57,5 +55,8 @@ export const checkATSScore = (formData) =>
 export const getNotifications = () => API.get("/notifications");
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => API.put("/notifications/read-all");
+
+// Feedback (public)
+export const submitFeedback = (data) => API.post("/feedback", data);
 
 export default API;

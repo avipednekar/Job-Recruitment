@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Footer from "../components/Footer";
+import { submitFeedback } from "../services/api";
 
 /* ──────────────────────────────────────────────
    FEATURE CARDS DATA
@@ -192,11 +193,15 @@ const Home = () => {
       return;
     }
     setSending(true);
-    // Simulate API call
-    await new Promise((r) => setTimeout(r, 1200));
-    toast.success("Thank you for your feedback! We'll get back to you soon.");
-    setFeedbackForm({ name: "", email: "", message: "" });
-    setSending(false);
+    try {
+      await submitFeedback(feedbackForm);
+      toast.success("Thank you for your feedback! We'll get back to you soon.");
+      setFeedbackForm({ name: "", email: "", message: "" });
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Failed to send feedback. Please try again.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (

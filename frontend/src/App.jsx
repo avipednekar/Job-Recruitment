@@ -12,6 +12,7 @@ import Register from "./pages/Register";
 import ProfileSetup from "./pages/ProfileSetup";
 import ProfileView from "./pages/ProfileView";
 import ATSChecker from "./pages/ATSChecker";
+import NotFound from "./pages/NotFound";
 
 // ─────────────────────────────────────────────
 // Route guards
@@ -40,7 +41,7 @@ function ProtectedRoute({ children }) {
 /**
  * SetupRoute — requires login but does NOT check profileComplete
  * (avoids infinite redirect loop on the setup page itself).
- * If profile is already complete, send them to the dashboard.
+ * If profile is already complete, send them to the profile page.
  */
 function SetupRoute({ children }) {
   const { user, isAuthenticated, loading } = useAuth();
@@ -91,10 +92,13 @@ function App() {
               {/* Protected (requires auth + completed profile) */}
               <Route path="/profile" element={<ProtectedRoute><ProfileView /></ProtectedRoute>} />
 
-              {/* Legacy redirect */}
+              {/* Legacy redirects */}
               <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
               <Route path="/profile/setup" element={<Navigate to="/setup-profile" replace />} />
               <Route path="/resume-parser" element={<Navigate to="/setup-profile" replace />} />
+
+              {/* 404 catch-all */}
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
           <Toaster
