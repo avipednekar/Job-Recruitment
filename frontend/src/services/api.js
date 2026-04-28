@@ -58,6 +58,11 @@ export const getNotifications = () => API.get("/notifications");
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => API.put("/notifications/read-all");
 
+// Saved Jobs
+export const toggleSavedJob = (jobId) => API.post(`/saved-jobs/${jobId}`);
+export const getSavedJobs = () => API.get("/saved-jobs");
+export const getSavedJobIds = () => API.get("/saved-jobs/ids");
+
 // Feedback (public)
 export const submitFeedback = (data) => API.post("/feedback", data);
 

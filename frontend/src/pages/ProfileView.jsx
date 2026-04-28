@@ -5,6 +5,7 @@ import {
   Briefcase,
   CheckCircle2,
   ExternalLink,
+  Heart,
   LayoutDashboard,
   LogOut,
   Mail,
@@ -29,14 +30,17 @@ import {
   getApplications,
   getJobRecommendations,
   getProfile,
+  getSavedJobs,
   saveCompanyProfile,
   saveJobSeekerProfile,
 } from "../services/api";
 import { getJobDestination, getJobKey, isExternalJob } from "../utils/job-utils";
+import { useSavedJobs } from "../context/SavedJobsContext";
 
 const DASHBOARD_SECTIONS = [
   { key: "profile", label: "Profile", icon: UserRound },
   { key: "applications", label: "Applied Jobs", icon: Briefcase },
+  { key: "saved", label: "Saved Jobs", icon: Heart },
   { key: "recommendations", label: "Recommended Jobs", icon: Sparkles },
   { key: "settings", label: "Settings", icon: Settings },
 ];
@@ -114,6 +118,10 @@ function RecommendationCard({ job, index }) {
   const external = isExternalJob(job);
   const destination = getJobDestination(job);
   const matchScore = job.match_metrics?.overall_match_score;
+  const { isSaved, toggle } = useSavedJobs();
+  const jobId = job?._id;
+  const canSave = Boolean(jobId) && !external;
+  const saved = canSave && isSaved(jobId);
 
   return (
     <Card className="border-border p-5">
@@ -127,7 +135,25 @@ function RecommendationCard({ job, index }) {
           <p className="mt-1 text-sm text-text-secondary">{job.company}</p>
           <p className="mt-2 text-sm text-text-secondary">{job.location || "Flexible location"}</p>
         </div>
-        <span className="text-xs font-medium text-text-tertiary">#{index + 1}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {canSave ? (
+            <button
+              type="button"
+              onClick={() => toggle(jobId)}
+              className="group grid size-9 place-items-center rounded-xl transition-all hover:bg-rose-50 dark:hover:bg-rose-500/10"
+              aria-label={saved ? "Unsave job" : "Save job"}
+            >
+              <Heart
+                className={`size-[18px] transition-all duration-200 ${
+                  saved
+                    ? "fill-rose-500 text-rose-500 scale-110"
+                    : "text-text-tertiary group-hover:text-rose-400"
+                }`}
+              />
+            </button>
+          ) : null}
+          <span className="text-xs font-medium text-text-tertiary">#{index + 1}</span>
+        </div>
       </div>
       <div className="mt-5">
         {external ? (
@@ -318,6 +344,7 @@ export default function ProfileView() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { toggle: toggleSave, isSaved } = useSavedJobs();
 
   const [profile, setProfile] = useState(null);
   const [profileDraft, setProfileDraft] = useState(null);
@@ -328,6 +355,8 @@ export default function ProfileView() {
   const [applications, setApplications] = useState([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [applicationFilter, setApplicationFilter] = useState("all");
+  const [savedJobsList, setSavedJobsList] = useState([]);
+  const [savedJobsLoading, setSavedJobsLoading] = useState(false);
 
   const isJobSeeker = user?.role === "job_seeker";
   const activeSection = isValidSection(searchParams.get("section"))
@@ -426,6 +455,21 @@ export default function ProfileView() {
     }
   }, [isJobSeeker]);
 
+  const fetchSavedJobsList = useCallback(async () => {
+    if (!isJobSeeker) return;
+
+    try {
+      setSavedJobsLoading(true);
+      const res = await getSavedJobs();
+      setSavedJobsList(Array.isArray(res.data?.jobs) ? res.data.jobs : []);
+    } catch (error) {
+      console.error("Failed to fetch saved jobs:", error);
+      setSavedJobsList([]);
+    } finally {
+      setSavedJobsLoading(false);
+    }
+  }, [isJobSeeker]);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -433,7 +477,8 @@ export default function ProfileView() {
   useEffect(() => {
     fetchRecommendations();
     fetchUserApplications();
-  }, [fetchRecommendations, fetchUserApplications]);
+    fetchSavedJobsList();
+  }, [fetchRecommendations, fetchUserApplications, fetchSavedJobsList]);
 
   const handleSectionChange = (nextSection) => {
     if (nextSection === activeSection) return;
@@ -819,6 +864,95 @@ export default function ProfileView() {
                     <EmptyState
                       title="No applications in this view yet"
                       description="Apply to jobs to start tracking your pipeline and status updates here."
+                      action={
+                        <Link to="/jobs">
+                          <Button>Browse jobs</Button>
+                        </Link>
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {activeSection === "saved" ? (
+              <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/8 px-3 py-1.5 text-sm font-medium text-rose-500 mb-3">
+                      <Heart className="size-4" /> Your collection
+                    </div>
+                    <h2 className="font-display text-2xl font-bold text-text-primary">Saved Jobs</h2>
+                    <p className="mt-2 text-text-secondary">
+                      Jobs you've bookmarked for later. Tap the heart to remove.
+                    </p>
+                  </div>
+                  <Button variant="secondary" onClick={fetchSavedJobsList} isLoading={savedJobsLoading}>
+                    <RefreshCcw className="size-4" /> Refresh
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  {savedJobsLoading ? (
+                    <div className="flex min-h-48 items-center justify-center">
+                      <div className="size-10 animate-spin rounded-full border-2 border-rose-400/30 border-t-rose-500" />
+                    </div>
+                  ) : savedJobsList.length ? (
+                    savedJobsList.map((job) => (
+                      <div
+                        key={job._id}
+                        className="bg-white dark:bg-surface-3 p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-6 hover:translate-x-1 transition-transform"
+                      >
+                        <div className="flex items-center gap-5 w-full sm:w-auto">
+                          <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 flex-shrink-0">
+                            <Briefcase className="size-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-text-primary line-clamp-1">{job.title || "Job unavailable"}</h4>
+                            <p className="text-sm text-text-secondary">
+                              {job.company || "Company unavailable"}
+                              {job.location ? ` • ${job.location}` : ""}
+                            </p>
+                            {Array.isArray(job.skills) && job.skills.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {job.skills.slice(0, 4).map((skill) => (
+                                  <span
+                                    key={skill}
+                                    className="px-2.5 py-0.5 rounded-full bg-surface-lighter dark:bg-surface-2 text-[11px] font-semibold text-text-secondary"
+                                  >
+                                    {skill}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              toggleSave(job._id);
+                              // Remove from local list optimistically
+                              setSavedJobsList((prev) => prev.filter((j) => j._id !== job._id));
+                            }}
+                            className="group grid size-10 place-items-center rounded-xl transition-all hover:bg-rose-50 dark:hover:bg-rose-500/10"
+                            aria-label="Unsave job"
+                          >
+                            <Heart className="size-5 fill-rose-500 text-rose-500 group-hover:scale-110 transition-transform" />
+                          </button>
+                          <Link
+                            to={`/jobs/${job._id}`}
+                            className="text-text-tertiary hover:text-primary transition-colors"
+                          >
+                            <ExternalLink className="size-5" />
+                          </Link>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <EmptyState
+                      title="No saved jobs yet"
+                      description="Browse jobs and tap the heart icon to save them for later."
                       action={
                         <Link to="/jobs">
                           <Button>Browse jobs</Button>

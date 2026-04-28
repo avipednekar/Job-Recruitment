@@ -30,6 +30,9 @@ const userSchema = new mongoose.Schema(
     profileComplete: { type: Boolean, default: false },
     candidate: { type: mongoose.Schema.Types.ObjectId, ref: "Candidate" },
 
+    // Saved/bookmarked jobs
+    savedJobs: [{ type: mongoose.Schema.Types.ObjectId, ref: "Job" }],
+
     // Email OTP verification
     isVerified: { type: Boolean, default: false },
     otp: { type: String, select: false },

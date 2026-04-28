@@ -3,6 +3,7 @@ import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { useAuth } from "./context/useAuth";
+import { SavedJobsProvider } from "./context/SavedJobsContext";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Jobs from "./pages/Jobs";
@@ -74,6 +75,7 @@ function App() {
     <Router>
       <ThemeProvider>
         <AuthProvider>
+          <SavedJobsProvider>
           <div className="min-h-screen bg-surface text-text-primary transition-colors duration-300">
             <Navbar />
             <Routes>
@@ -103,6 +105,7 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
+          </SavedJobsProvider>
           <Toaster
             position="top-right"
             toastOptions={{

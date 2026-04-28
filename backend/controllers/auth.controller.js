@@ -284,6 +284,7 @@ export const getMe = async (req, res) => {
         role: user.role,
         candidate: user.candidate,
         profileComplete: user.profileComplete || false,
+        savedJobsCount: (user.savedJobs || []).length,
         createdAt: user.createdAt,
       },
     });

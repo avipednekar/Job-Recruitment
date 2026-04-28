@@ -11,6 +11,7 @@ import locationRoutes from "./routes/location.routes.js";
 import atsRoutes from "./routes/ats.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import feedbackRoutes from "./routes/feedback.routes.js";
+import savedJobsRoutes from "./routes/saved-jobs.routes.js";
 
 export const createApp = () => {
   const app = express();
@@ -36,6 +37,7 @@ export const createApp = () => {
   app.use("/api/ats", atsRoutes);
   app.use("/api/notifications", notificationRoutes);
   app.use("/api/feedback", feedbackRoutes);
+  app.use("/api/saved-jobs", savedJobsRoutes);
 
   // Health check
   app.get("/", (req, res) => {

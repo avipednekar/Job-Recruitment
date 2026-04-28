@@ -8,6 +8,7 @@ import {
   ChevronUp,
   ExternalLink,
   Filter,
+  Heart,
   Lightbulb,
   LoaderCircle,
   MapPin,
@@ -38,6 +39,7 @@ import {
   MatchBadge,
   timeAgo,
 } from "../utils/job-utils";
+import { useSavedJobs } from "../context/SavedJobsContext";
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Internship"];
 const EXP_LEVELS = ["Entry Level", "1-3 yrs", "3+ yrs", "5+ yrs", "Lead / Manager"];
@@ -104,6 +106,18 @@ function JobCard({ job, recommendation = false, dimmed = false }) {
   const timestamp = timeAgo(getJobTimestamp(job));
   const aiScore = job?.match_metrics?.overall_match_score;
   const skills = Array.isArray(job?.skills) ? job.skills : [];
+  const { isSaved, toggle } = useSavedJobs();
+
+  // Only internal jobs with _id can be bookmarked
+  const jobId = job?._id;
+  const canSave = Boolean(jobId) && !external;
+  const saved = canSave && isSaved(jobId);
+
+  const handleToggleSave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (canSave) toggle(jobId);
+  };
 
   const content = (
     <Card className={`p-5 h-full flex flex-col border-border hover:border-primary/30 hover:shadow-lg transition-all ${dimmed ? "opacity-40 hover:opacity-80" : ""}`}>
@@ -142,9 +156,27 @@ function JobCard({ job, recommendation = false, dimmed = false }) {
           </div>
         </div>
 
-        {typeof aiScore === "number" && aiScore > 0 ? (
-          <MatchBadge score={aiScore} />
-        ) : null}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {canSave ? (
+            <button
+              type="button"
+              onClick={handleToggleSave}
+              className="group grid size-9 place-items-center rounded-xl transition-all hover:bg-rose-50 dark:hover:bg-rose-500/10"
+              aria-label={saved ? "Unsave job" : "Save job"}
+            >
+              <Heart
+                className={`size-[18px] transition-all duration-200 ${
+                  saved
+                    ? "fill-rose-500 text-rose-500 scale-110"
+                    : "text-text-tertiary group-hover:text-rose-400"
+                }`}
+              />
+            </button>
+          ) : null}
+          {typeof aiScore === "number" && aiScore > 0 ? (
+            <MatchBadge score={aiScore} />
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 text-sm text-text-secondary">

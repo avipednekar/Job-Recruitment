@@ -6,6 +6,7 @@ import {
   Building2,
   CheckCircle2,
   Clock3,
+  Heart,
   MapPin,
   Sparkles,
 } from "lucide-react";
@@ -15,6 +16,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import { applyToJob, getJobById } from "../services/api";
 import { useAuth } from "../context/useAuth";
+import { useSavedJobs } from "../context/SavedJobsContext";
 
 function timeAgo(dateStr) {
   if (!dateStr) return "Recently posted";
@@ -35,6 +37,7 @@ export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isSaved, toggle } = useSavedJobs();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
@@ -191,9 +194,31 @@ export default function JobDetails() {
                       Submit your profile once and we will attach your parsed resume data automatically.
                     </p>
                   </div>
-                  <Button className="w-full justify-center" onClick={handleApply} isLoading={applying}>
-                    Apply now
-                  </Button>
+                  <div className="flex gap-3">
+                    <Button className="flex-1 justify-center" onClick={handleApply} isLoading={applying}>
+                      Apply now
+                    </Button>
+                    {job?._id ? (
+                      <button
+                        type="button"
+                        onClick={() => toggle(job._id)}
+                        className={`grid size-12 place-items-center rounded-2xl border transition-all ${
+                          isSaved(job._id)
+                            ? "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
+                            : "border-border hover:border-rose-200 hover:bg-rose-50 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10"
+                        }`}
+                        aria-label={isSaved(job._id) ? "Unsave job" : "Save job"}
+                      >
+                        <Heart
+                          className={`size-5 transition-all duration-200 ${
+                            isSaved(job._id)
+                              ? "fill-rose-500 text-rose-500"
+                              : "text-text-tertiary hover:text-rose-400"
+                          }`}
+                        />
+                      </button>
+                    ) : null}
+                  </div>
                   <p className="text-xs text-text-tertiary">
                     Your existing profile, resume insights, and AI match context will be used.
                   </p>
