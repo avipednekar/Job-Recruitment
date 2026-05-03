@@ -108,7 +108,7 @@ export const uploadResume = async (req, res) => {
           },
           $setOnInsert: { embedding: initialEmbedding },
         },
-        { new: true, upsert: true },
+        { returnDocument: "after", upsert: true },
       );
       console.log("[RESUME] Upserted candidate for user:", req.user.id);
     } else {

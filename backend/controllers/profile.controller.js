@@ -118,7 +118,7 @@ export const upsertJobSeekerProfile = async (req, res) => {
         },
         $setOnInsert: { embedding: new Array(384).fill(0) },
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
     );
 
     // Link candidate to user and mark profile complete
@@ -169,7 +169,7 @@ export const upsertCompanyProfile = async (req, res) => {
       {
         $set: setFields,
       },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
     );
 
     user.profileComplete = true;
@@ -226,7 +226,7 @@ export const uploadProfilePhoto = async (req, res) => {
           },
           $setOnInsert: { embedding: new Array(384).fill(0) },
         },
-        { new: true, upsert: true, setDefaultsOnInsert: true },
+        { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
       );
 
       user.candidate = profile._id;
@@ -242,7 +242,7 @@ export const uploadProfilePhoto = async (req, res) => {
             user: user._id,
           },
         },
-        { new: true, upsert: true, setDefaultsOnInsert: true },
+        { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
       );
     } else {
       return res.status(403).json({ error: "Profile photos are available for job seekers and recruiters" });

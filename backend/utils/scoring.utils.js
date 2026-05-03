@@ -26,6 +26,8 @@ const buildExternalJobText = (job) =>
       job?.title,
       job?.description,
       job?.job_level,
+      job?.experience_range,
+      job?.employment_type,
     ]
       .filter(Boolean)
       .join(" "),
@@ -165,17 +167,21 @@ export const extractRequiredYearsFromExternalJob = (job) => {
     job?.title,
     job?.description,
     job?.job_level,
+    job?.experience_range,
+    job?.experience,
+    job?.min_exp,
+    job?.max_exp,
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
   const experienceText = normalizeText(rawExperienceText);
-  const rangeMatch = rawExperienceText.match(/(\d+)\s*(?:\+|plus)?\s*(?:-|to)\s*(\d+)\s*years?/i);
+  const rangeMatch = rawExperienceText.match(/(\d+(?:\.\d+)?)\s*(?:\+|plus)?\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:years?|yrs?|yoe)/i);
   if (rangeMatch) {
     return Number(rangeMatch[1]);
   }
 
-  const numericMatch = rawExperienceText.match(/(\d+)\s*(?:\+|plus)?\s*years?/i);
+  const numericMatch = rawExperienceText.match(/(\d+(?:\.\d+)?)\s*(?:\+|plus)?\s*(?:years?|yrs?|yoe)/i);
   if (numericMatch) {
     return Number(numericMatch[1]);
   }
@@ -187,6 +193,50 @@ export const extractRequiredYearsFromExternalJob = (job) => {
   if (hasAnyKeyword(experienceText, ["junior"])) return 1;
   if (hasAnyKeyword(experienceText, ["entry", "fresher", "intern", "trainee", "apprentice", "graduate"])) return 0;
   return 0;
+};
+
+const parsePostedAtDate = (value) => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const relativeMatch = raw.match(/(\d+)\s*(minute|hour|day|week|month)s?\s*ago/i);
+  if (relativeMatch) {
+    const amount = Number(relativeMatch[1]);
+    const unit = relativeMatch[2].toLowerCase();
+    const multipliers = {
+      minute: 60 * 1000,
+      hour: 60 * 60 * 1000,
+      day: 24 * 60 * 60 * 1000,
+      week: 7 * 24 * 60 * 60 * 1000,
+      month: 30 * 24 * 60 * 60 * 1000,
+    };
+    return new Date(Date.now() - (amount * multipliers[unit]));
+  }
+
+  if (/^(today|just posted|new)$/i.test(raw)) {
+    return new Date();
+  }
+
+  if (/^yesterday$/i.test(raw)) {
+    return new Date(Date.now() - (24 * 60 * 60 * 1000));
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+export const isFreshExternalJob = (job, maxAgeHours = 168) => {
+  const postedAt = parsePostedAtDate(job?.postedAt || job?.date_posted || job?.posted_at);
+  if (!postedAt) return true;
+
+  const ageMs = Date.now() - postedAt.getTime();
+  if (ageMs < 0) return true;
+  return ageMs <= maxAgeHours * 60 * 60 * 1000;
 };
 
 export const exceedsCandidateExperience = (job, candidateYears) => {
@@ -307,7 +357,7 @@ export const buildExternalJobQuery = (candidate) => {
   const seniority = inferCandidateSeniority(candidate);
 
   return uniqueValues([
-    ["fresher", "entry level", "junior"].includes(seniority) ? seniority : "",
+    ["fresher", "entry level", "junior", "mid level"].includes(seniority) ? seniority : "",
     role,
     ...topSkills,
   ]).join(" ");
@@ -317,13 +367,6 @@ export const buildExternalJobQueries = (candidate) => {
   const skills = getCandidateSkills(candidate);
   const role = inferRecommendationRole(candidate, skills);
   const topSkills = pickSearchSkills(skills, 2);
-  const seniority = inferCandidateSeniority(candidate);
-  const latestRole = normalizeText(
-    candidate?.experience?.[0]?.title ||
-    candidate?.experience?.[0]?.role ||
-    candidate?.experience?.[0]?.position ||
-    "",
-  );
 
   let roleVariants = [role];
 
@@ -349,14 +392,21 @@ export const buildExternalJobQueries = (candidate) => {
     ];
   }
 
-  // To prevent hitting rate limits / memory issues with JobSpy,
-  // we slice to a maximum of 2 variants.
-  return roleVariants.slice(0, 2).map((variant) => {
-    if (topSkills.length > 0) {
-      return `${variant} ${topSkills.join(" ")}`;
-    }
-    return variant;
-  });
+  const seniorityVariants = candidateYearsToSearchTerms(estimateCandidateYears(candidate));
+
+  return uniqueValues([
+    ...roleVariants.flatMap((variant) =>
+      seniorityVariants.map((term) => uniqueValues([variant, term, ...topSkills.slice(0, 2)]).join(" ")),
+    ),
+    ...roleVariants.map((variant) => uniqueValues([variant, ...topSkills.slice(0, 2)]).join(" ")),
+  ]).slice(0, 5);
+};
+
+const candidateYearsToSearchTerms = (candidateYears = 0) => {
+  if (candidateYears < 0.5) return ["fresher", "entry level", "graduate"];
+  if (candidateYears < 2) return ["entry level", "junior"];
+  if (candidateYears < 5) return ["junior", "mid level"];
+  return [""];
 };
 
 export const extractExternalJobSkills = (job, candidateSkills = []) => {
@@ -463,6 +513,12 @@ export const scoreExternalJobLocally = (
     } else if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS)) {
       careerStageScore = 0;
     }
+  } else if (candidateYears < 5) {
+    if (hasAnyKeyword(titleText, ["mid", "intermediate", "junior", "associate"])) {
+      careerStageScore = 90;
+    } else if (hasAnyKeyword(titleText, ["senior", "sr", "lead", "manager", "architect", "principal", "staff", "head"])) {
+      careerStageScore = 25;
+    }
   }
 
   // ── STEP 4: Weighted composite — experience is now 22% ──
@@ -484,6 +540,8 @@ export const scoreExternalJobLocally = (
 
   if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 2) {
     localScore *= 0.5;
+  } else if (hasAnyKeyword(titleText, SENIOR_TITLE_TERMS) && candidateYears < 5) {
+    localScore *= 0.72;
   }
 
   if (roleScore === 0) {

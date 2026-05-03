@@ -8,6 +8,7 @@ const INSIGHTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 12000);
 const AI_RECOMMEND_TIMEOUT_MS = Number(process.env.AI_RECOMMEND_TIMEOUT_MS || 10000);
+const EXTERNAL_JOB_MAX_AGE_HOURS = Number(process.env.EXTERNAL_JOB_MAX_AGE_HOURS || 168);
 import {
   buildExternalJobQuery,
   buildExternalJobQueries,
@@ -15,6 +16,7 @@ import {
   estimateCandidateYears,
   inferRecommendationRole,
   scoreExternalJobLocally,
+  isFreshExternalJob,
 } from "../utils/scoring.utils.js";
 
 import {
@@ -65,6 +67,7 @@ const buildExternalRecommendationJobs = ({
   inferredRole = "",
 }) =>
   dedupeScrapedJobs(jobs)
+    .filter((job) => isFreshExternalJob(job, EXTERNAL_JOB_MAX_AGE_HOURS))
     .map((job, index) => {
       const localRanking = scoreExternalJobLocally(
         job,
@@ -96,6 +99,7 @@ const buildExternalRecommendationJobs = ({
         source_type: "external",
         listing_source: job.source || "external",
         postedAt: job.postedAt,
+        experience_range: job.experience_range || "",
         skills: localRanking?.inferredSkills || [],
         match_metrics: { overall_match_score: overallScore },
         local_match_score: overallScore,

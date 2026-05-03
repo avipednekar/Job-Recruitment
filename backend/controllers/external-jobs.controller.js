@@ -7,6 +7,7 @@ import {
   estimateCandidateYears,
   inferRecommendationRole,
   scoreExternalJobLocally,
+  isFreshExternalJob,
 } from "../utils/scoring.utils.js";
 
 // Node.js cache to avoid hitting RapidAPI rate limits unnecessarily
@@ -15,6 +16,7 @@ import {
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 15000);
+const EXTERNAL_JOB_MAX_AGE_HOURS = Number(process.env.EXTERNAL_JOB_MAX_AGE_HOURS || 168);
 import { INDIA_LABEL, INDIA_STATE_TERMS, LOCATION_PREFIX_PATTERN, INDIA_LOCATION_PARTS } from "../utils/constants.js";
 const CACHE_VERSION = "india-v3";
 const LOCATION_GROUP_SPLIT_REGEX = /\s*(?:;|\||\r?\n)+\s*/;
@@ -273,7 +275,11 @@ export const fetchExternalJobs = async (req, res) => {
       
       // Deduplicate jobs by title, company, and location
       const seenKeys = new Set();
-      const uniqueScrapedJobs = scrapedJobs.filter(job => {
+      const freshScrapedJobs = scrapedJobs.filter((job) =>
+        isFreshExternalJob(job, EXTERNAL_JOB_MAX_AGE_HOURS),
+      );
+
+      const uniqueScrapedJobs = freshScrapedJobs.filter(job => {
         const key = `${job.title || ""}-${job.company || ""}-${job.location || ""}`.toLowerCase().replace(/\s+/g, "");
         if (seenKeys.has(key)) return false;
         seenKeys.add(key);
@@ -309,6 +315,7 @@ export const fetchExternalJobs = async (req, res) => {
           source_type: "external",
           listing_source: job.source || "external",
           postedAt: job.postedAt,
+          experience_range: job.experience_range || "",
           skills: localRanking ? localRanking.inferredSkills : [],
           match_metrics: localRanking ? { overall_match_score: localRanking.score } : null,
           local_match_score: localRanking ? localRanking.score : null,

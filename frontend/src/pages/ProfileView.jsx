@@ -136,7 +136,7 @@ function RecommendationCard({ job, index }) {
           <p className="mt-1 text-sm text-text-secondary">{job.company}</p>
           <p className="mt-2 text-sm text-text-secondary">{job.location || "Flexible location"}</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {canSave ? (
             <button
               type="button"
@@ -145,7 +145,7 @@ function RecommendationCard({ job, index }) {
               aria-label={saved ? "Unsave job" : "Save job"}
             >
               <Heart
-                className={`size-[18px] transition-all duration-200 ${
+                className={`size-4.5 transition-all duration-200 ${
                   saved
                     ? "fill-rose-500 text-rose-500 scale-110"
                     : "text-text-tertiary group-hover:text-rose-400"
@@ -436,7 +436,7 @@ export default function ProfileView() {
       const internalJobs = Array.isArray(res.data?.internal) ? res.data.internal : [];
       const externalJobs = Array.isArray(res.data?.external) ? res.data.external : [];
       const combined = dedupeRecommendations([...internalJobs, ...externalJobs])
-        .filter((job) => (job.match_metrics?.overall_match_score || 0) >= 50)
+        .filter((job) => (job.match_metrics?.overall_match_score || 0) >= 35)
         .sort(
           (left, right) =>
             (right.match_metrics?.overall_match_score || 0) -
@@ -627,7 +627,7 @@ export default function ProfileView() {
                   ))}
                 </div>
 
-                <div className="rounded-2xl bg-gradient-to-br from-primary to-primary-strong p-5 text-white relative overflow-hidden">
+                <div className="rounded-2xl bg-linear-to-br from-primary to-primary-strong p-5 text-white relative overflow-hidden">
                   <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-accent/20 blur-2xl rounded-full"></div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">
                     Profile strength
@@ -672,10 +672,10 @@ export default function ProfileView() {
             {activeSection === "profile" ? (
               <>
                 <Card className="overflow-hidden">
-                  <div className="bg-gradient-to-br from-primary to-primary-strong p-8 sm:p-10 relative overflow-hidden">
+                  <div className="bg-linear-to-br from-primary to-primary-strong p-8 sm:p-10 relative overflow-hidden">
                     {/* Decorative blurs */}
                     <div className="absolute -right-16 -top-16 w-64 h-64 bg-accent/15 blur-[60px] rounded-full"></div>
-                    <div className="absolute left-1/2 bottom-0 w-48 h-48 bg-white/5 blur-[40px] rounded-full"></div>
+                    <div className="absolute left-1/2 bottom-0 w-48 h-48 bg-white/5 blur-2xl rounded-full"></div>
 
                     <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
                       <div className="flex items-start gap-5">
@@ -759,7 +759,7 @@ export default function ProfileView() {
                     />
 
                     {isProfileDirty ? (
-                      <div className="sticky bottom-4 mt-8 rounded-[1.5rem] bg-white/90 dark:bg-surface-3/90 p-5 shadow-[0_20px_40px_rgba(27,27,33,0.1)] backdrop-blur-xl sm:flex sm:items-center sm:justify-between">
+                      <div className="sticky bottom-4 mt-8 rounded-3xl bg-white/90 dark:bg-surface-3/90 p-5 shadow-[0_20px_40px_rgba(27,27,33,0.1)] backdrop-blur-xl sm:flex sm:items-center sm:justify-between">
                         <div>
                           <p className="font-bold text-text-primary">Unsaved profile changes</p>
                           <p className="text-sm text-text-secondary">
@@ -780,14 +780,14 @@ export default function ProfileView() {
 
                   <div className="space-y-6">
                     {/* Profile Completion - Stitch deep purple card */}
-                    <div className="bg-gradient-to-br from-[#1f005d] to-[#360094] rounded-[2rem] p-7 text-white relative overflow-hidden">
+                    <div className="bg-linear-to-br from-[#1f005d] to-[#360094] rounded-4xl p-7 text-white relative overflow-hidden">
                       <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-accent/20 blur-3xl rounded-full"></div>
                       <h3 className="text-lg font-display font-bold mb-5">Boost Your Profile</h3>
                       <ul className="space-y-4">
                         {insights.checks.map((check) => (
                           <li key={check.label} className="flex items-start gap-3">
                             <CheckCircle2
-                              className={`size-5 mt-0.5 flex-shrink-0 ${
+                              className={`size-5 mt-0.5 shrink-0 ${
                                 check.complete ? "text-accent" : "text-white/30"
                               }`}
                             />
@@ -827,7 +827,7 @@ export default function ProfileView() {
             ) : null}
 
             {activeSection === "applications" ? (
-              <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+              <div className="bg-surface-lighter dark:bg-surface-2 rounded-4xl p-8 sm:p-10">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                   <div>
                     <h2 className="font-display text-2xl font-bold text-text-primary">Applied Jobs</h2>
@@ -864,7 +864,7 @@ export default function ProfileView() {
                       return (
                         <div key={application._id} className="bg-white dark:bg-surface-3 p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-6 hover:translate-x-2 transition-transform cursor-pointer">
                           <div className="flex items-center gap-5 w-full sm:w-auto">
-                            <div className="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+                            <div className="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary shrink-0">
                               <Briefcase className="size-6" />
                             </div>
                             <div className="min-w-0">
@@ -910,7 +910,7 @@ export default function ProfileView() {
             ) : null}
 
             {activeSection === "saved" ? (
-              <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+              <div className="bg-surface-lighter dark:bg-surface-2 rounded-4xl p-8 sm:p-10">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-full bg-rose-500/8 px-3 py-1.5 text-sm font-medium text-rose-500 mb-3">
@@ -938,7 +938,7 @@ export default function ProfileView() {
                         className="bg-white dark:bg-surface-3 p-6 rounded-3xl flex flex-col sm:flex-row justify-between items-center gap-6 hover:translate-x-1 transition-transform"
                       >
                         <div className="flex items-center gap-5 w-full sm:w-auto">
-                          <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 flex-shrink-0">
+                          <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center text-rose-500 shrink-0">
                             <Briefcase className="size-6" />
                           </div>
                           <div className="min-w-0">
@@ -961,7 +961,7 @@ export default function ProfileView() {
                             ) : null}
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between flex-shrink-0">
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between shrink-0">
                           <button
                             type="button"
                             onClick={() => {
@@ -1045,14 +1045,14 @@ export default function ProfileView() {
 
             {activeSection === "settings" ? (
               <div className="space-y-6">
-                <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8 sm:p-10">
+                <div className="bg-surface-lighter dark:bg-surface-2 rounded-4xl p-8 sm:p-10">
                   <h2 className="font-display text-2xl font-bold text-text-primary">Settings</h2>
                   <p className="mt-2 text-text-secondary">
                     Manage your account and preferences.
                   </p>
 
                   <div className="mt-8 grid gap-6 lg:grid-cols-2">
-                    <div className="bg-white dark:bg-surface-3 rounded-[1.5rem] p-6">
+                    <div className="bg-white dark:bg-surface-3 rounded-3xl p-6">
                       <h3 className="text-lg font-display font-bold text-text-primary">Account</h3>
                       <div className="mt-5 space-y-4">
                         {[
@@ -1068,7 +1068,7 @@ export default function ProfileView() {
                       </div>
                     </div>
 
-                    <div className="bg-white dark:bg-surface-3 rounded-[1.5rem] p-6">
+                    <div className="bg-white dark:bg-surface-3 rounded-3xl p-6">
                       <h3 className="text-lg font-display font-bold text-text-primary">Appearance</h3>
                       <div className="mt-5 flex items-center justify-between gap-4 p-4 bg-surface-lighter dark:bg-surface-2 rounded-2xl">
                         <div>
@@ -1083,7 +1083,7 @@ export default function ProfileView() {
                   </div>
                 </div>
 
-                <div className="bg-surface-lighter dark:bg-surface-2 rounded-[2rem] p-8">
+                <div className="bg-surface-lighter dark:bg-surface-2 rounded-4xl p-8">
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-display font-bold text-text-primary">Session</h3>

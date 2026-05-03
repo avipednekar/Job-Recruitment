@@ -44,7 +44,9 @@ ai-service/uploads/
 GEMINI.md
 
 # Test infrastructure
-backend/__tests__/
+backend/__tests__/*
+!backend/__tests__/
+!backend/__tests__/scoring-external-jobs.test.js
 backend/jest.config.js
 ai-service/tests/
 ai-service/pyproject.toml

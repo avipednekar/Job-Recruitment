@@ -590,16 +590,15 @@ export default function Jobs() {
 
   // Unified Recommendation Pipeline:
   // Internal recs + backend external recs — consistent with Dashboard
-  // Only show 50%+ match score
+  // Show high and medium-quality matches so fresher/mid candidates are not over-filtered.
   const uiRecommendations = useMemo(() => {
     const mergedRecommendations = [...recommendations, ...externalRecommendations];
     const seenKeys = new Set();
 
     return mergedRecommendations
       .filter((job) => {
-        // Only show jobs with 50%+ match score
         const score = job.match_metrics?.overall_match_score || 0;
-        if (score < 50) return false;
+        if (score < 35) return false;
 
         const key = getRecommendationKey(job);
         if (!key) {
