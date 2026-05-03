@@ -10,7 +10,6 @@ beautifulsoup4
 selenium
 pandas
 python-jobspy
-truststore
 
 google-genai 
 

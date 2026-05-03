@@ -2,36 +2,16 @@ import os
 from datetime import datetime, timezone
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import quote
 
 import pandas as pd
 from bs4 import BeautifulSoup
-
-
-def _enable_system_cert_store():
-    if os.getenv("JOB_SCRAPER_USE_SYSTEM_CERTS", "true").lower() not in {"1", "true", "yes", "on"}:
-        return
-
-    try:
-        import truststore
-    except ImportError:
-        return
-
-    try:
-        truststore.inject_into_ssl()
-    except Exception as error:
-        print(f"[JobScraper] Could not enable system certificate store: {error}")
-
-
-_enable_system_cert_store()
-
 from jobspy import scrape_jobs
 
 from scraper.direct_scraper import scrape_direct_company_boards
 
 
 def _normalize_sites(raw_value):
-    default_sites = ["indeed", "linkedin", "naukri"]
+    default_sites = ["linkedin", "indeed"]
     source = raw_value if raw_value is not None else os.getenv("JOB_SCRAPER_SITES", "")
     values = source if isinstance(source, list) else str(source).split(",")
 
@@ -54,41 +34,11 @@ MAX_WORKERS = int(os.getenv("JOB_SCRAPER_MAX_WORKERS", "4"))
 HOURS_OLD = int(os.getenv("JOB_SCRAPER_HOURS_OLD", "168"))
 FETCH_LINKEDIN_DESCRIPTION = os.getenv("JOB_SCRAPER_FETCH_LINKEDIN_DESCRIPTION", "false").lower() == "true"
 VERBOSE = int(os.getenv("JOB_SCRAPER_VERBOSE", "0"))
-SCRAPER_API_KEY = os.getenv("SCRAPER_API_KEY", "").strip()
-SCRAPER_API_COUNTRY_CODE = os.getenv("SCRAPER_API_COUNTRY_CODE", "in").strip() or "in"
-SCRAPER_API_USE_PROXY = os.getenv("SCRAPER_API_USE_PROXY", "true").lower() == "true"
-SCRAPER_API_RENDER_ON_RETRY = os.getenv("SCRAPER_API_RENDER_ON_RETRY", "true").lower() == "true"
-SCRAPER_API_PREMIUM_ON_RETRY = os.getenv("SCRAPER_API_PREMIUM_ON_RETRY", "false").lower() == "true"
-JOB_SCRAPER_CA_CERT = (
-    os.getenv("JOB_SCRAPER_CA_CERT", "").strip()
-    or os.getenv("SCRAPER_API_CA_CERT", "").strip()
-    or os.getenv("REQUESTS_CA_BUNDLE", "").strip()
-    or os.getenv("SSL_CERT_FILE", "").strip()
-    or None
-)
 DIRECT_JOB_BOARD_URLS = [
     url.strip()
     for url in os.getenv("DIRECT_JOB_BOARD_URLS", "").split(",")
     if url.strip()
 ]
-
-
-def _scraperapi_proxy(render=False, premium=False):
-    if not (SCRAPER_API_KEY and SCRAPER_API_USE_PROXY):
-        return None
-
-    params = [f"country_code={SCRAPER_API_COUNTRY_CODE}"]
-    if render:
-        params.insert(0, "render=true")
-    if premium:
-        params.insert(0, "premium=true")
-
-    username = f"scraperapi.{'.'.join(params)}" if params else "scraperapi"
-    return f"http://{username}:{quote(SCRAPER_API_KEY, safe='')}@proxy-server.scraperapi.com:8001"
-
-
-def _is_empty_frame(value):
-    return value is None or getattr(value, "empty", False)
 
 
 def _normalize_queries(query):
@@ -112,7 +62,7 @@ def _normalize_queries(query):
     return normalized[:MAX_QUERY_VARIANTS] or ["software engineer"]
 
 
-def _scrape_site(site, query, location, results_wanted, offset, render=False, premium=False):
+def _scrape_site(site, query, location, results_wanted, offset):
     site_args = {
         "site_name": [site],
         "search_term": query,
@@ -125,14 +75,7 @@ def _scrape_site(site, query, location, results_wanted, offset, render=False, pr
         "verbose": VERBOSE,
     }
 
-    proxy = _scraperapi_proxy(render=render, premium=premium)
-    if proxy:
-        site_args["proxies"] = proxy
-
-    if JOB_SCRAPER_CA_CERT:
-        site_args["ca_cert"] = JOB_SCRAPER_CA_CERT
-
-    if site in {"indeed", "naukri"}:
+    if site == "indeed":
         site_args["country_indeed"] = "india"
     elif site == "google":
         site_args["google_search_term"] = query
@@ -300,18 +243,6 @@ def _fetch_jobspy_jobs(queries, location, page):
             query, site = future_to_task[future]
             try:
                 df = future.result()
-                if _is_empty_frame(df) and SCRAPER_API_RENDER_ON_RETRY and SCRAPER_API_KEY:
-                    print(f"[JobScraper] Retrying {site} with ScraperAPI render for query '{query}'")
-                    df = _scrape_site(
-                        site=site,
-                        query=query,
-                        location=search_location,
-                        results_wanted=RESULTS_PER_QUERY,
-                        offset=offset,
-                        render=True,
-                        premium=SCRAPER_API_PREMIUM_ON_RETRY,
-                    )
-
                 if df is not None and not df.empty:
                     per_site_frames.append(df.dropna(axis=1, how="all"))
                     seen_sites.add(site)
