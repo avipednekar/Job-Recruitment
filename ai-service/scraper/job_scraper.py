@@ -1,5 +1,6 @@
 import os
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -27,7 +28,10 @@ def _normalize_sites(raw_value):
 
 PRIMARY_SITES = _normalize_sites(None)
 RESULTS_PER_QUERY = int(os.getenv("JOB_SCRAPER_RESULTS_PER_QUERY", "10"))
-MAX_QUERY_VARIANTS = int(os.getenv("JOB_SCRAPER_MAX_QUERY_VARIANTS", "5"))
+MAX_QUERY_VARIANTS = int(os.getenv("JOB_SCRAPER_MAX_QUERY_VARIANTS", "3"))
+MAX_WORKERS = int(os.getenv("JOB_SCRAPER_MAX_WORKERS", "4"))
+FETCH_LINKEDIN_DESCRIPTION = os.getenv("JOB_SCRAPER_FETCH_LINKEDIN_DESCRIPTION", "false").lower() == "true"
+VERBOSE = int(os.getenv("JOB_SCRAPER_VERBOSE", "0"))
 DIRECT_JOB_BOARD_URLS = [
     url.strip()
     for url in os.getenv("DIRECT_JOB_BOARD_URLS", "").split(",")
@@ -63,10 +67,10 @@ def _scrape_site(site, query, location, results_wanted, offset):
         "location": location,
         "results_wanted": results_wanted,
         "offset": offset,
-        "linkedin_fetch_description": True,
+        "linkedin_fetch_description": FETCH_LINKEDIN_DESCRIPTION,
         "hours_old": 168,
         "description_format": "markdown",
-        "verbose": 1,
+        "verbose": VERBOSE,
     }
 
     if site == "indeed":
@@ -171,19 +175,32 @@ def _fetch_jobspy_jobs(queries, location, page):
     search_location = (location or "").strip() or "India"
     per_site_frames = []
     seen_sites = set()
+    tasks = [
+        (query, site)
+        for query in queries
+        for site in PRIMARY_SITES
+    ]
 
-    for query in queries:
-        for site in PRIMARY_SITES:
+    worker_count = max(1, min(MAX_WORKERS, len(tasks)))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_task = {
+            executor.submit(
+                _scrape_site,
+                site=site,
+                query=query,
+                location=search_location,
+                results_wanted=RESULTS_PER_QUERY,
+                offset=offset,
+            ): (query, site)
+            for query, site in tasks
+        }
+
+        for future in as_completed(future_to_task):
+            query, site = future_to_task[future]
             try:
-                df = _scrape_site(
-                    site=site,
-                    query=query,
-                    location=search_location,
-                    results_wanted=RESULTS_PER_QUERY,
-                    offset=offset,
-                )
+                df = future.result()
                 if df is not None and not df.empty:
-                    per_site_frames.append(df)
+                    per_site_frames.append(df.dropna(axis=1, how="all"))
                     seen_sites.add(site)
                     print(f"[JobScraper] {site} returned {len(df)} rows for query '{query}'")
                 else:

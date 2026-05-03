@@ -6,6 +6,8 @@ const insightsCache = new Map();
 const INSIGHTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
+const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 12000);
+const AI_RECOMMEND_TIMEOUT_MS = Number(process.env.AI_RECOMMEND_TIMEOUT_MS || 10000);
 import {
   buildExternalJobQuery,
   buildExternalJobQueries,
@@ -118,6 +120,8 @@ const fetchRecommendedExternalJobs = async ({
     queries: queries.length ? queries : [query],
     location: candidateLocation || "India",
     page: 1,
+  }, {
+    timeout: AI_SCRAPE_TIMEOUT_MS,
   });
 
   return buildExternalRecommendationJobs({
@@ -486,6 +490,8 @@ export const getJobRecommendations = async (req, res) => {
         aiResponse = await axios.post(`${AI_SERVICE_URL}/recommend_jobs`, {
           candidate_data: candidate,
           jobs_list: internalJobs,
+        }, {
+          timeout: AI_RECOMMEND_TIMEOUT_MS,
         });
       } catch (err) {
         console.warn("[Job Recs] AI service unreachable for internal ranking, using local fallback.");

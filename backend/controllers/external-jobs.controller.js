@@ -14,6 +14,7 @@ import {
 // We should cache aggressively.
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 15000);
 import { INDIA_LABEL, INDIA_STATE_TERMS, LOCATION_PREFIX_PATTERN, INDIA_LOCATION_PARTS } from "../utils/constants.js";
 const CACHE_VERSION = "india-v3";
 const LOCATION_GROUP_SPLIT_REGEX = /\s*(?:;|\||\r?\n)+\s*/;
@@ -262,6 +263,8 @@ export const fetchExternalJobs = async (req, res) => {
       queries,
       location: resolvedLocation || "India",
       page: Number(page),
+    }, {
+      timeout: AI_SCRAPE_TIMEOUT_MS,
     });
 
     if (response.data && response.data.jobs) {

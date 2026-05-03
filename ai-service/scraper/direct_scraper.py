@@ -26,6 +26,7 @@ import json
 import os
 import re
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -40,6 +41,7 @@ SCRAPER_API_URL = "https://api.scraperapi.com"
 
 REQUEST_TIMEOUT = 30  # seconds
 MAX_JOBS_PER_BOARD = 50  # cap per company to avoid overload
+MAX_BOARD_WORKERS = int(os.getenv("DIRECT_JOB_BOARD_MAX_WORKERS", "4"))
 
 HEADERS = {
     "User-Agent": (
@@ -538,15 +540,22 @@ def scrape_direct_company_boards(company_urls: list[str]) -> list[dict]:
         return []
 
     all_jobs = []
-    for url in company_urls:
-        try:
-            print(f"\n[DIRECT_SCRAPER] -- Scraping board: {url} --")
-            board_jobs = _scrape_single_board(url)
-            all_jobs.extend(board_jobs)
-        except Exception as e:
-            print(f"[DIRECT_SCRAPER] Failed to scrape {url}: {e}")
-            traceback.print_exc()
-            continue
+    worker_count = max(1, min(MAX_BOARD_WORKERS, len(company_urls)))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_url = {
+            executor.submit(_scrape_single_board, url): url
+            for url in company_urls
+        }
+
+        for future in as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                print(f"\n[DIRECT_SCRAPER] -- Scraped board: {url} --")
+                all_jobs.extend(future.result())
+            except Exception as e:
+                print(f"[DIRECT_SCRAPER] Failed to scrape {url}: {e}")
+                traceback.print_exc()
+                continue
 
     print(f"\n[DIRECT_SCRAPER] Total: {len(all_jobs)} jobs scraped from {len(company_urls)} board(s)")
     return all_jobs
