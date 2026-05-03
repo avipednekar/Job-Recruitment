@@ -21,6 +21,7 @@ import Badge from "../components/ui/Badge";
 import Button from "../components/ui/Button";
 import ThemeToggle from "../components/ThemeToggle";
 import JobSeekerProfileEditor from "../components/profile/JobSeekerProfileEditor";
+import ProfilePhotoUploader from "../components/profile/ProfilePhotoUploader";
 import {
   normalizeJobSeekerProfileData,
   serializeJobSeekerProfileData,
@@ -186,6 +187,7 @@ function RecruiterProfile({ profile, onSave }) {
     location: profile?.location || "",
     size: profile?.size || "",
     founded: profile?.founded || "",
+    logo: profile?.logo || profile?.logoAsset?.url || "",
     description: profile?.description || "",
   });
   const [saving, setSaving] = useState(false);
@@ -198,6 +200,7 @@ function RecruiterProfile({ profile, onSave }) {
       location: profile?.location || "",
       size: profile?.size || "",
       founded: profile?.founded || "",
+      logo: profile?.logo || profile?.logoAsset?.url || "",
       description: profile?.description || "",
     });
   }, [profile]);
@@ -217,10 +220,20 @@ function RecruiterProfile({ profile, onSave }) {
   return (
     <div className="space-y-6">
       <Card className="bg-linear-to-br from-[#f5f9ff] via-white to-[#eef8f3] p-8">
-        <h1 className="font-display text-4xl text-text-primary">{profile?.name || "Company profile"}</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-text-secondary">
-          Keep your employer profile polished so candidates trust the roles you publish.
-        </p>
+        <div className="flex flex-wrap items-start gap-5">
+          <ProfilePhotoUploader
+            compact
+            photoUrl={draft.logo || profile?.logoAsset?.url}
+            name={draft.name || profile?.name}
+            onUploaded={(photo) => setDraft((prev) => ({ ...prev, logo: photo.url }))}
+          />
+          <div>
+            <h1 className="font-display text-4xl text-text-primary">{profile?.name || "Company profile"}</h1>
+            <p className="mt-3 max-w-2xl leading-7 text-text-secondary">
+              Keep your employer profile polished so candidates trust the roles you publish.
+            </p>
+          </div>
+        </div>
       </Card>
 
       <Card className="p-6">
@@ -579,8 +592,16 @@ export default function ProfileView() {
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="grid size-12 place-items-center rounded-2xl bg-primary text-lg font-bold text-white shadow-lg shadow-primary/20">
-                      {normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    <div className="grid size-12 place-items-center overflow-hidden rounded-2xl bg-primary text-lg font-bold text-white shadow-lg shadow-primary/20">
+                      {normalizedDraft.profilePhoto?.url ? (
+                        <img
+                          src={normalizedDraft.profilePhoto.url}
+                          alt={normalizedDraft.name ? `${normalizedDraft.name} profile` : "Profile"}
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"
+                      )}
                     </div>
                     <div>
                       <h1 className="font-display text-lg font-bold text-text-primary leading-tight">
@@ -658,8 +679,16 @@ export default function ProfileView() {
 
                     <div className="relative z-10 flex flex-wrap items-start justify-between gap-4">
                       <div className="flex items-start gap-5">
-                        <div className="grid size-20 place-items-center rounded-3xl bg-white/10 backdrop-blur-sm text-3xl font-bold text-white shadow-2xl border-2 border-white/10">
-                          {normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"}
+                        <div className="grid size-20 place-items-center overflow-hidden rounded-3xl bg-white/10 backdrop-blur-sm text-3xl font-bold text-white shadow-2xl border-2 border-white/10">
+                          {normalizedDraft.profilePhoto?.url ? (
+                            <img
+                              src={normalizedDraft.profilePhoto.url}
+                              alt={normalizedDraft.name ? `${normalizedDraft.name} profile` : "Profile"}
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            normalizedDraft.name?.charAt(0)?.toUpperCase() || user?.name?.charAt(0)?.toUpperCase() || "U"
+                          )}
                         </div>
                         <div className="min-w-0">
                           <div className="mb-3 flex flex-wrap gap-2">
@@ -721,6 +750,11 @@ export default function ProfileView() {
                     <JobSeekerProfileEditor
                       data={profileDraft}
                       onChange={setProfileDraft}
+                      onPhotoUploaded={(photo, updatedProfile) => {
+                        const nextProfile = updatedProfile || { ...normalizedDraft, profilePhoto: photo };
+                        setProfile(nextProfile);
+                        setProfileDraft(normalizeJobSeekerProfileData(nextProfile, user));
+                      }}
                       idPrefix="dashboard-profile"
                     />
 

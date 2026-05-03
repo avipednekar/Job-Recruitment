@@ -2,7 +2,9 @@ import User from "../models/User.js";
 import Candidate from "../models/Candidate.js";
 import Company from "../models/Company.js";
 import axios from "axios";
+import fs from "fs";
 import { buildEmbeddingText } from "../utils/embedding.utils.js";
+import { uploadFileToCloudinary } from "../utils/cloudinary.utils.js";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 
@@ -150,20 +152,22 @@ export const upsertCompanyProfile = async (req, res) => {
 
     console.log("[PROFILE] Upserting company profile for user:", user._id.toString());
 
+    const setFields = {
+      name: name || user.name,
+      description: description ?? "",
+      website: website ?? "",
+      location: location ?? "",
+      industry: industry ?? "",
+      size: size ?? "",
+      founded: founded ?? "",
+      user: user._id,
+    };
+    if (logo !== undefined) setFields.logo = logo;
+
     const company = await Company.findOneAndUpdate(
       { user: user._id },
       {
-        $set: {
-          name: name || user.name,
-          description: description ?? "",
-          website: website ?? "",
-          location: location ?? "",
-          industry: industry ?? "",
-          size: size ?? "",
-          founded: founded ?? "",
-          logo: logo ?? "",
-          user: user._id,
-        },
+        $set: setFields,
       },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
@@ -186,6 +190,81 @@ export const upsertCompanyProfile = async (req, res) => {
 // PUT /api/profile/me  (unified update endpoint)
 // Routes to the correct upsert based on role
 // ─────────────────────────────────────────────
+// POST /api/profile/photo
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No profile photo uploaded. Use the field name `photo`." });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const photoAsset = await uploadFileToCloudinary({
+      filePath: req.file.path,
+      folder: `recruitai/profile-photos/${user._id}`,
+      resourceType: "image",
+      originalName: req.file.originalname,
+    });
+
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (e) {
+      console.warn("[PROFILE] Could not delete temp profile photo:", e.message);
+    }
+
+    let profile;
+    if (user.role === "job_seeker") {
+      profile = await Candidate.findOneAndUpdate(
+        { user: user._id },
+        {
+          $set: {
+            profilePhoto: photoAsset,
+            name: user.name,
+            email: user.email,
+            user: user._id,
+          },
+          $setOnInsert: { embedding: new Array(384).fill(0) },
+        },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      );
+
+      user.candidate = profile._id;
+      await user.save({ validateModifiedOnly: true });
+    } else if (user.role === "recruiter") {
+      profile = await Company.findOneAndUpdate(
+        { user: user._id },
+        {
+          $set: {
+            logo: photoAsset.url,
+            logoAsset: photoAsset,
+            name: user.name,
+            user: user._id,
+          },
+        },
+        { new: true, upsert: true, setDefaultsOnInsert: true },
+      );
+    } else {
+      return res.status(403).json({ error: "Profile photos are available for job seekers and recruiters" });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Profile photo uploaded",
+      photo: photoAsset,
+      profile,
+    });
+  } catch (error) {
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) {}
+    }
+    console.error("[PROFILE] Upload Photo Error:", error.message);
+    res.status(500).json({ error: error.message || "Failed to upload profile photo" });
+  }
+};
+
 export const updateProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);

@@ -4,6 +4,7 @@ import fs from "fs";
 import Job from "../models/Job.js";
 import Candidate from "../models/Candidate.js";
 import { buildEmbeddingText } from "../utils/embedding.utils.js";
+import { uploadFileToCloudinary } from "../utils/cloudinary.utils.js";
 
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
 
@@ -48,12 +49,6 @@ export const uploadResume = async (req, res) => {
       );
     }
 
-    try {
-      fs.unlinkSync(req.file.path);
-    } catch (e) {
-      console.warn("[RESUME] Could not delete temp file:", e.message);
-    }
-
     // Flatten parsed data to match the new Candidate schema
     // The AI parser returns nested { personal_info, skills: { skills, confidence_score }, ... }
     const personalInfo = parsedData.personal_info || {};
@@ -79,6 +74,23 @@ export const uploadResume = async (req, res) => {
       "| experience:", flatCandidate.experience.length,
       "| projects:", flatCandidate.projects.length);
 
+    let resumeAsset = null;
+    if (req.user?.id && process.env.CLOUDINARY_URL) {
+      resumeAsset = await uploadFileToCloudinary({
+        filePath: req.file.path,
+        folder: `recruitai/resumes/${req.user.id}`,
+        resourceType: "raw",
+        originalName: req.file.originalname,
+      });
+      console.log("[RESUME] Uploaded resume to Cloudinary:", resumeAsset.publicId);
+    }
+
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (e) {
+      console.warn("[RESUME] Could not delete temp file:", e.message);
+    }
+
     // Build embedding text from flat candidate
     const combinedText = buildEmbeddingText(flatCandidate);
 
@@ -89,7 +101,11 @@ export const uploadResume = async (req, res) => {
       candidate = await Candidate.findOneAndUpdate(
         { user: req.user.id },
         {
-          $set: { ...flatCandidate, user: req.user.id },
+          $set: {
+            ...flatCandidate,
+            ...(resumeAsset ? { resume: resumeAsset } : {}),
+            user: req.user.id,
+          },
           $setOnInsert: { embedding: initialEmbedding },
         },
         { new: true, upsert: true },
@@ -98,6 +114,7 @@ export const uploadResume = async (req, res) => {
     } else {
       candidate = new Candidate({
         ...flatCandidate,
+        ...(resumeAsset ? { resume: resumeAsset } : {}),
         embedding: initialEmbedding,
       });
       await candidate.save();
@@ -120,6 +137,7 @@ export const uploadResume = async (req, res) => {
     res.status(201).json({
       success: true,
       candidate_id: candidate._id,
+      resume: resumeAsset,
       parsed_data: parsedData, // Keep original nested format so frontend auto-fill still works during transition
     });
   } catch (error) {

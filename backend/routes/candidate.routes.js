@@ -5,11 +5,13 @@ import {
   rankCandidates,
 } from "../controllers/candidate.controller.js";
 import upload from "../middleware/upload.middleware.js";
+import { optionalProtect } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
 router.post(
   "/upload",
+  optionalProtect,
   (req, res, next) => {
     upload.fields([
       { name: "file", maxCount: 1 },

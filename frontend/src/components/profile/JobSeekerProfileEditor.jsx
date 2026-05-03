@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { HiPlus, HiTrash, HiX } from "react-icons/hi";
+import { HiDocumentText, HiPlus, HiTrash, HiX } from "react-icons/hi";
 import InputField from "../ui/InputField";
 import Button from "../ui/Button";
+import ProfilePhotoUploader from "./ProfilePhotoUploader";
 import {
   getEmptyEducationItem,
   getEmptyExperienceItem,
@@ -66,6 +67,7 @@ function RepeatableSection({
 export default function JobSeekerProfileEditor({
   data,
   onChange,
+  onPhotoUploaded,
   idPrefix = "profile",
 }) {
   const [skillInput, setSkillInput] = useState("");
@@ -126,6 +128,33 @@ export default function JobSeekerProfileEditor({
           title="Personal Information"
           description="Keep your core profile up to date so recruiters and the matching engine both see your latest details."
         />
+        <ProfilePhotoUploader
+          photoUrl={safeData.profilePhoto?.url}
+          name={safeData.name}
+          onUploaded={(photo, profile) => {
+            onChange({ ...safeData, profilePhoto: photo });
+            onPhotoUploaded?.(photo, profile);
+          }}
+        />
+        {safeData.resume?.url ? (
+          <a
+            href={safeData.resume.url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-surface-2 p-4 text-sm transition-colors hover:border-primary/40"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <HiDocumentText className="size-5 shrink-0 text-primary" />
+              <span className="min-w-0">
+                <span className="block font-semibold text-text-primary">Uploaded resume</span>
+                <span className="block truncate text-xs text-text-secondary">
+                  {safeData.resume.originalName || "View stored resume"}
+                </span>
+              </span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-primary">Open</span>
+          </a>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <InputField id={`${idPrefix}-name`} label="Full Name" value={safeData.name} onChange={setField("name")} placeholder="John Doe" />
           <InputField id={`${idPrefix}-email`} label="Email" type="email" value={safeData.email} onChange={setField("email")} placeholder="john@example.com" />

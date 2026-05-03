@@ -8,6 +8,16 @@ const companySchema = new mongoose.Schema(
     website: { type: String, default: "" },
     location: { type: String, default: "" },
     logo: { type: String, default: "" },
+    logoAsset: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+      assetId: { type: String, default: "" },
+      resourceType: { type: String, default: "image" },
+      format: { type: String, default: "" },
+      bytes: { type: Number, default: 0 },
+      originalName: { type: String, default: "" },
+      uploadedAt: { type: Date },
+    },
     industry: { type: String, default: "" },
     size: {
       type: String,

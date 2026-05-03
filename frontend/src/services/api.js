@@ -29,6 +29,12 @@ export const uploadResume = (formData) => API.post("/candidates/upload", formDat
 export const getProfile = () => API.get("/profile/me");
 export const saveJobSeekerProfile = (data) => API.put("/profile/job-seeker", data);
 export const saveCompanyProfile = (data) => API.put("/profile/company", data);
+export const uploadProfilePhoto = (formData) =>
+  API.post("/profile/photo", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
 
 // Jobs
 export const createJob = (data) => API.post("/jobs", data);

@@ -14,6 +14,7 @@ import {
 } from "react-icons/hi";
 import toast from "react-hot-toast";
 import JobSeekerProfileEditor from "../components/profile/JobSeekerProfileEditor";
+import ProfilePhotoUploader from "../components/profile/ProfilePhotoUploader";
 import {
   createEmptyJobSeekerProfile,
   normalizeJobSeekerProfileData,
@@ -84,6 +85,7 @@ export default function ProfileSetup() {
     industry: "",
     size: "",
     founded: "",
+    logo: "",
   });
 
   const handleFileDrop = useCallback((event) => {
@@ -128,6 +130,7 @@ export default function ProfileSetup() {
             education: parsedData.education || [],
             experience: parsedData.experience || [],
             projects: parsedData.projects || [],
+            resume: res.data.resume || null,
           },
           user,
         ),
@@ -199,6 +202,11 @@ export default function ProfileSetup() {
                   <HiOfficeBuilding className="size-5 text-primary" /> Company Details
                 </h2>
                 <div className="space-y-5">
+                  <ProfilePhotoUploader
+                    photoUrl={companyForm.logo}
+                    name={companyForm.name || user?.name}
+                    onUploaded={(photo) => setCompanyForm((prev) => ({ ...prev, logo: photo.url }))}
+                  />
                   <InputField id="c-name" label="Company Name *" value={companyForm.name} onChange={setCompanyField("name")} placeholder="Acme Corp" icon={<HiOfficeBuilding className="size-5" />} />
                   <InputField id="c-industry" label="Industry" value={companyForm.industry} onChange={setCompanyField("industry")} placeholder="Technology, Healthcare..." icon={<HiTag className="size-5" />} />
                   <div className="grid gap-5 sm:grid-cols-2">

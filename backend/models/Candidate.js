@@ -11,6 +11,26 @@ const candidateSchema = new mongoose.Schema(
     linkedin: { type: String, default: "" },
     summary: { type: String, default: "" },
     title: { type: String, default: "" },
+    profilePhoto: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+      assetId: { type: String, default: "" },
+      resourceType: { type: String, default: "image" },
+      format: { type: String, default: "" },
+      bytes: { type: Number, default: 0 },
+      originalName: { type: String, default: "" },
+      uploadedAt: { type: Date },
+    },
+    resume: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+      assetId: { type: String, default: "" },
+      resourceType: { type: String, default: "raw" },
+      format: { type: String, default: "" },
+      bytes: { type: Number, default: 0 },
+      originalName: { type: String, default: "" },
+      uploadedAt: { type: Date },
+    },
 
     // ── Matching data ──
     skills: { type: [String], default: [] },

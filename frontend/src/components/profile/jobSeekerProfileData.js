@@ -77,6 +77,8 @@ export const createEmptyJobSeekerProfile = (user) => ({
   github: "",
   linkedin: "",
   summary: "",
+  profilePhoto: null,
+  resume: null,
   skills: [],
   education: [],
   experience: [],
@@ -92,6 +94,8 @@ export const normalizeJobSeekerProfileData = (data = {}, user) => ({
   github: toString(data?.github),
   linkedin: toString(data?.linkedin),
   summary: toString(data?.summary),
+  profilePhoto: data?.profilePhoto || null,
+  resume: data?.resume || null,
   skills: Array.isArray(data?.skills)
     ? data.skills.map((skill) => toString(skill)).filter(Boolean)
     : [],
@@ -105,6 +109,8 @@ export const serializeJobSeekerProfileData = (data = {}, user) => {
 
   return {
     ...normalized,
+    profilePhoto: normalized.profilePhoto,
+    resume: normalized.resume,
     skills: normalized.skills.map((skill) => skill.trim()).filter(Boolean),
     education: trimStructuredArray(normalized.education),
     experience: trimStructuredArray(normalized.experience),

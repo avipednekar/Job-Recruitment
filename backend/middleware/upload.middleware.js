@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const fileFilter = (req, file, cb) => {
+const resumeFileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (ext === ".pdf" || ext === ".docx") {
     cb(null, true);
@@ -33,10 +33,25 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
+const imageFileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only JPG, PNG, and WebP images are allowed"), false);
+  }
+};
+
+const resumeUpload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter,
+  fileFilter: resumeFileFilter,
 });
 
-export default upload;
+export const profilePhotoUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: imageFileFilter,
+});
+
+export default resumeUpload;
