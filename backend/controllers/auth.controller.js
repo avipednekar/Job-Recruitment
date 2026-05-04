@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
+import crypto from "crypto";
 import User from "../models/User.js";
-import { generateOTP, sendOTPEmail } from "../utils/email.utils.js";
+import { generateOTP, sendOTPEmail, sendPasswordResetEmail } from "../utils/email.utils.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_change_me";
 const JWT_EXPIRES_IN = "7d";
@@ -344,5 +346,173 @@ export const getMe = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch profile" });
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/auth/forgot-password
+// ─────────────────────────────────────────────
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Don't reveal whether email exists — always return success
+      return res.json({
+        success: true,
+        message: "If an account with that email exists, a reset code has been sent.",
+      });
+    }
+
+    const otp = generateOTP();
+    user.resetOtp = otp;
+    user.resetOtpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+    await user.save({ validateModifiedOnly: true });
+
+    let emailSent = true;
+    try {
+      await sendPasswordResetEmail(user.email, otp, user.name);
+    } catch (emailErr) {
+      console.error("[AUTH] Failed to send reset email:", emailErr.message);
+      emailSent = false;
+    }
+
+    const response = {
+      success: true,
+      email: user.email,
+      emailSent,
+      message: emailSent
+        ? "Password reset code sent to your email."
+        : "Email delivery failed.",
+    };
+
+    // In development, expose the OTP if email failed
+    if (!IS_PRODUCTION && !emailSent) {
+      response.devOtp = otp;
+      console.warn(`[AUTH] Development reset OTP for ${user.email}: ${otp}`);
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error("[AUTH] Forgot Password Error:", error.message);
+    res.status(500).json({ error: "Failed to process password reset request" });
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/auth/reset-password
+// ─────────────────────────────────────────────
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ error: "Email, OTP, and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() }).select(
+      "+resetOtp +resetOtpExpiry",
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!user.resetOtp || !user.resetOtpExpiry) {
+      return res.status(400).json({ error: "No reset code found. Please request a new one." });
+    }
+
+    if (new Date() > user.resetOtpExpiry) {
+      return res.status(400).json({ error: "Reset code has expired. Please request a new one." });
+    }
+
+    if (user.resetOtp !== otp.trim()) {
+      return res.status(400).json({ error: "Invalid reset code. Please try again." });
+    }
+
+    // Update password and clear reset fields
+    user.password = newPassword;
+    user.resetOtp = undefined;
+    user.resetOtpExpiry = undefined;
+    await user.save();
+
+    console.log("[AUTH] Password reset successful:", user.email);
+
+    res.json({ success: true, message: "Password reset successful. You can now log in." });
+  } catch (error) {
+    console.error("[AUTH] Reset Password Error:", error.message);
+    res.status(500).json({ error: "Failed to reset password" });
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/auth/google
+// ─────────────────────────────────────────────
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      return res.status(400).json({ error: "Google credential is required" });
+    }
+
+    // Verify the Google ID token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+
+    if (!payload || !payload.email) {
+      return res.status(400).json({ error: "Invalid Google token" });
+    }
+
+    const { email, name, picture, email_verified } = payload;
+
+    if (!email_verified) {
+      return res.status(400).json({ error: "Google email is not verified" });
+    }
+
+    // Find or create user
+    let user = await User.findOne({ email: email.toLowerCase() });
+
+    if (user) {
+      // Existing user — ensure verified
+      if (!user.isVerified) {
+        user.isVerified = true;
+        await user.save({ validateModifiedOnly: true });
+      }
+    } else {
+      // New user — auto-create with a random secure password
+      const randomPassword = crypto.randomBytes(32).toString("hex");
+      user = await User.create({
+        name: name || email.split("@")[0],
+        email: email.toLowerCase(),
+        password: randomPassword,
+        role: "job_seeker",
+        isVerified: true,
+      });
+      console.log("[AUTH] New Google user created:", user.email);
+    }
+
+    console.log("[AUTH] Google login:", user.email);
+
+    const token = generateToken(user);
+    sendTokenResponse(res, 200, user, token);
+  } catch (error) {
+    console.error("[AUTH] Google Login Error:", error.message);
+    res.status(500).json({ error: "Google authentication failed" });
   }
 };

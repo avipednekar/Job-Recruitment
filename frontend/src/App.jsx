@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { useAuth } from "./context/useAuth";
@@ -14,7 +15,10 @@ import ProfileSetup from "./pages/ProfileSetup";
 import ProfileView from "./pages/ProfileView";
 import ATSChecker from "./pages/ATSChecker";
 import VerifyOTP from "./pages/VerifyOTP";
+import ForgotPassword from "./pages/ForgotPassword";
 import NotFound from "./pages/NotFound";
+
+const GOOGLE_CLIENT_ID = "318988983810-hk8udhumuqgusltdseikp04n4c2tp48u.apps.googleusercontent.com";
 
 // ─────────────────────────────────────────────
 // Route guards
@@ -72,6 +76,7 @@ function GuestRoute({ children }) {
 
 function App() {
   return (
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
     <Router>
       <ThemeProvider>
         <AuthProvider>
@@ -89,6 +94,7 @@ function App() {
               <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
               <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
               <Route path="/verify-otp" element={<GuestRoute><VerifyOTP /></GuestRoute>} />
+              <Route path="/forgot-password" element={<GuestRoute><ForgotPassword /></GuestRoute>} />
 
               {/* Onboarding (requires auth, skips profile-complete check) */}
               <Route path="/setup-profile" element={<SetupRoute><ProfileSetup /></SetupRoute>} />
@@ -125,6 +131,7 @@ function App() {
         </AuthProvider>
       </ThemeProvider>
     </Router>
+    </GoogleOAuthProvider>
   );
 }
 

@@ -694,6 +694,46 @@
   background: #172441;
 }
 
+/* ── Disabled social button (LinkedIn "Coming soon") ── */
+.login-social-btn--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  position: relative;
+}
+
+.login-social-btn--disabled:hover {
+  transform: none;
+  border-color: #d1d7e0;
+  background: #ffffff;
+}
+
+.dark .login-social-btn--disabled:hover {
+  border-color: #2f3f6a;
+  background: #111a2e;
+}
+
+.login-coming-soon-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, #FDCA40, #F79824);
+  color: #31393C;
+  padding: 0.12rem 0.4rem;
+  border-radius: 0.35rem;
+  margin-left: 0.25rem;
+}
+
+/* ── Google OAuth button wrapper ── */
+.login-social-google-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  border-radius: 0.875rem;
+  overflow: hidden;
+}
+
 /* ── Footer ── */
 .login-footer {
   margin-top: 1.5rem;

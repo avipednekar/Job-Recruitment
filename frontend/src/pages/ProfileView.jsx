@@ -301,6 +301,66 @@ const dedupeRecommendations = (jobs = []) => {
 
 
 
+/**
+ * Parse months of experience from a single experience entry.
+ * Tries structured startDate/endDate first, then falls back to parsing
+ * the `duration` text string (e.g. "09/2015 - Present", "01/2013 - 08/2015").
+ */
+function parseExpMonths(exp) {
+  // 1. Try structured date fields
+  const start = exp.startDate || exp.start_date;
+  if (start) {
+    const s = new Date(start);
+    if (!Number.isNaN(s.getTime())) {
+      const rawEnd = exp.endDate || exp.end_date;
+      const e = rawEnd ? new Date(rawEnd) : new Date();
+      if (!Number.isNaN(e.getTime())) {
+        return Math.max(0, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+      }
+    }
+  }
+
+  // 2. Fallback: parse duration text like "09/2015 - Present" or "Jan 2013 – Aug 2015"
+  const dur = exp.duration || exp.period || exp.date_range || "";
+  if (!dur) return 0;
+
+  // Pattern A: MM/YYYY - MM/YYYY  or  MM/YYYY - Present
+  const patternA = dur.match(/(\d{1,2})\s*[/\-.]\s*(\d{4})\s*[-–—]\s*(.+)/i);
+  if (patternA) {
+    const sDate = new Date(parseInt(patternA[2], 10), parseInt(patternA[1], 10) - 1);
+    const endPart = patternA[3].trim();
+    let eDate;
+    if (/present|current|now|ongoing/i.test(endPart)) {
+      eDate = new Date();
+    } else {
+      const endMatch = endPart.match(/(\d{1,2})\s*[/\-.]\s*(\d{4})/);
+      eDate = endMatch
+        ? new Date(parseInt(endMatch[2], 10), parseInt(endMatch[1], 10) - 1)
+        : new Date();
+    }
+    if (!Number.isNaN(sDate.getTime()) && !Number.isNaN(eDate.getTime())) {
+      return Math.max(0, (eDate.getFullYear() - sDate.getFullYear()) * 12 + (eDate.getMonth() - sDate.getMonth()));
+    }
+  }
+
+  // Pattern B: "YYYY - YYYY" or "YYYY - Present" (year-only)
+  const patternB = dur.match(/(\d{4})\s*[-–—]\s*(.+)/i);
+  if (patternB) {
+    const sYear = parseInt(patternB[1], 10);
+    const endPart = patternB[2].trim();
+    let eYear;
+    if (/present|current|now|ongoing/i.test(endPart)) {
+      eYear = new Date().getFullYear();
+    } else {
+      const yearMatch = endPart.match(/(\d{4})/);
+      eYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+    }
+    return Math.max(0, (eYear - sYear) * 12);
+  }
+
+  return 0;
+}
+
 function computeInsights(profile) {
   const skills = profile?.skills || [];
   const education = Array.isArray(profile?.education) ? profile.education : [];
@@ -308,18 +368,10 @@ function computeInsights(profile) {
   const projects = Array.isArray(profile?.projects) ? profile.projects : [];
   const summary = profile?.summary || "";
 
-  // Calculate total years of experience from date ranges
+  // Calculate total years of experience
   let totalMonths = 0;
   for (const exp of experience) {
-    const start = exp.startDate || exp.start_date;
-    const end = exp.endDate || exp.end_date || exp.current ? null : undefined;
-    if (!start) continue;
-    const startDate = new Date(start);
-    const endDate = end ? new Date(end) : (exp.current ? new Date() : new Date());
-    if (Number.isNaN(startDate.getTime())) continue;
-    const months = (endDate.getFullYear() - startDate.getFullYear()) * 12
-      + (endDate.getMonth() - startDate.getMonth());
-    totalMonths += Math.max(0, months);
+    totalMonths += parseExpMonths(exp);
   }
   const totalYears = Math.max(0, Math.round(totalMonths / 12));
   const experienceLabel = experience.length === 0

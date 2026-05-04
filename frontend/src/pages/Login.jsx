@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaBrain, FaGoogle, FaLinkedinIn } from "react-icons/fa";
+import { FaBrain, FaLinkedinIn } from "react-icons/fa";
 import { HiArrowRight, HiEye, HiEyeOff } from "react-icons/hi";
+import { GoogleLogin } from "@react-oauth/google";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/useAuth";
+import { googleLogin as googleLoginAPI } from "../services/api";
 
 /* ─── Floating-label input ─── */
 const FloatingInput = ({
@@ -47,7 +49,7 @@ const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -78,6 +80,25 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    try {
+      const res = await googleLoginAPI({ credential: credentialResponse.credential });
+      localStorage.setItem("token", res.data.token);
+      setUser(res.data.user);
+      toast.success(`Welcome, ${res.data.user.name}!`);
+      navigate(res.data.user.profileComplete ? "/" : "/setup-profile");
+    } catch (error) {
+      toast.error(error.response?.data?.error || "Google login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleError = () => {
+    toast.error("Google Sign-In was cancelled or failed");
   };
 
   return (
@@ -140,7 +161,7 @@ const Login = () => {
           />
 
           <div className="login-forgot-row">
-            <Link to="#" className="login-forgot-link">
+            <Link to="/forgot-password" className="login-forgot-link">
               Forgot Password?
             </Link>
           </div>
@@ -173,13 +194,26 @@ const Login = () => {
 
         {/* ── Social buttons ── */}
         <div className="login-social-row">
-          <button type="button" className="login-social-btn">
-            <FaGoogle className="w-4 h-4" />
-            Google
-          </button>
-          <button type="button" className="login-social-btn">
+          <div className="login-social-google-wrapper">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              theme="outline"
+              size="large"
+              text="signin_with"
+              shape="rectangular"
+              width="100%"
+            />
+          </div>
+          <button
+            type="button"
+            className="login-social-btn login-social-btn--disabled"
+            disabled
+            title="Coming soon"
+          >
             <FaLinkedinIn className="w-4 h-4" />
             LinkedIn
+            <span className="login-coming-soon-badge">Soon</span>
           </button>
         </div>
 

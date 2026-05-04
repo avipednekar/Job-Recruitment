@@ -21,6 +21,9 @@ export const logoutUser = () => API.post("/auth/logout");
 export const getMe = () => API.get("/auth/me");
 export const verifyOTP = (data) => API.post("/auth/verify-otp", data);
 export const resendOTP = (data) => API.post("/auth/resend-otp", data);
+export const forgotPassword = (data) => API.post("/auth/forgot-password", data);
+export const resetPassword = (data) => API.post("/auth/reset-password", data);
+export const googleLogin = (data) => API.post("/auth/google", data);
 
 // Resume upload (returns parsed data from AI service)
 export const uploadResume = (formData) => API.post("/candidates/upload", formData);
