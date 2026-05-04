@@ -64,8 +64,14 @@ const Login = () => {
     } catch (error) {
       const errData = error.response?.data;
       if (errData?.requiresVerification) {
-        toast.error("Please verify your email first");
-        navigate("/verify-otp", { state: { email: errData.email } });
+        toast.error(errData.devOtp ? "Use the development verification code." : "Please verify your email first");
+        navigate("/verify-otp", {
+          state: {
+            email: errData.email,
+            devOtp: errData.devOtp,
+            emailSent: errData.emailSent,
+          },
+        });
       } else {
         toast.error(errData?.error || "Login failed");
       }

@@ -1,14 +1,38 @@
 import nodemailer from "nodemailer";
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "587", 10),
-  secure: process.env.SMTP_SECURE === "true", // true for 465, false for 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+const getSmtpConfig = () => {
+  const host = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const secure = process.env.SMTP_SECURE === "true";
+  const user = (process.env.SMTP_USER || "").trim();
+  const rawPass = process.env.SMTP_PASS || "";
+  const pass = host.includes("gmail.com") ? rawPass.replace(/\s/g, "") : rawPass.trim();
+
+  if (!user || !pass) {
+    throw new Error("SMTP_USER and SMTP_PASS must be configured to send OTP email");
+  }
+
+  return {
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  };
+};
+
+const createTransporter = (smtpConfig) => nodemailer.createTransport(smtpConfig);
+
+export const getEmailConfigStatus = () => {
+  const host = (process.env.SMTP_HOST || "smtp.gmail.com").trim();
+  const user = (process.env.SMTP_USER || "").trim();
+  const pass = process.env.SMTP_PASS || "";
+
+  return {
+    host,
+    hasUser: Boolean(user),
+    hasPass: Boolean(pass.trim()),
+  };
+};
 
 /**
  * Generate a 6-digit numeric OTP.
@@ -21,6 +45,7 @@ export const generateOTP = () => {
  * Send a verification OTP email.
  */
 export const sendOTPEmail = async (email, otp, name = "") => {
+  const smtpConfig = getSmtpConfig();
   const greeting = name ? `Hi ${name},` : "Hi,";
 
   const html = `
@@ -52,12 +77,12 @@ export const sendOTPEmail = async (email, otp, name = "") => {
   `;
 
   const mailOptions = {
-    from: `"RecruitAI" <${process.env.SMTP_USER || "noreply@recruitai.com"}>`,
+    from: `"RecruitAI" <${smtpConfig.auth.user}>`,
     to: email,
     subject: `${otp} is your RecruitAI verification code`,
     html,
   };
 
-  await transporter.sendMail(mailOptions);
+  await createTransporter(smtpConfig).sendMail(mailOptions);
   console.log(`[Email] OTP sent to ${email}`);
 };

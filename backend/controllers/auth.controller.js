@@ -5,6 +5,7 @@ import { generateOTP, sendOTPEmail } from "../utils/email.utils.js";
 const JWT_SECRET = process.env.JWT_SECRET || "default_jwt_secret_change_me";
 const JWT_EXPIRES_IN = "7d";
 const OTP_EXPIRY_MINUTES = 10;
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -38,6 +39,40 @@ const sendTokenResponse = (res, statusCode, user, token) => {
   });
 };
 
+const buildOtpResponse = ({ email, emailSent, devOtp }) => {
+  const response = {
+    success: true,
+    requiresVerification: true,
+    email,
+    emailSent,
+    message: emailSent
+      ? "Verification code sent to your email"
+      : "Email delivery failed. Use the development OTP shown here.",
+  };
+
+  if (!emailSent && devOtp) {
+    response.devOtp = devOtp;
+  }
+
+  return response;
+};
+
+const sendVerificationOtp = async ({ email, otp, name, context }) => {
+  try {
+    await sendOTPEmail(email, otp, name);
+    return { emailSent: true };
+  } catch (emailErr) {
+    console.error(`[AUTH] Failed to ${context} OTP email:`, emailErr.message);
+
+    if (IS_PRODUCTION) {
+      throw emailErr;
+    }
+
+    console.warn(`[AUTH] Development OTP for ${email}: ${otp}`);
+    return { emailSent: false, devOtp: otp };
+  }
+};
+
 // ─────────────────────────────────────────────
 // POST /api/auth/register
 // ─────────────────────────────────────────────
@@ -66,18 +101,17 @@ export const register = async (req, res) => {
         existingUser.role = userRole;
         await existingUser.save();
 
-        try {
-          await sendOTPEmail(email, otp, name);
-        } catch (emailErr) {
-          console.error("[AUTH] Failed to send OTP email:", emailErr.message);
-        }
-
-        return res.status(200).json({
-          success: true,
-          requiresVerification: true,
-          email: email.toLowerCase(),
-          message: "Verification code sent to your email",
+        const delivery = await sendVerificationOtp({
+          email: existingUser.email,
+          otp,
+          name,
+          context: "send",
         });
+
+        return res.status(200).json(buildOtpResponse({
+          email: existingUser.email,
+          ...delivery,
+        }));
       }
 
       return res
@@ -101,18 +135,17 @@ export const register = async (req, res) => {
     console.log("[AUTH] User registered (pending verification):", user.email, "| role:", user.role);
 
     // Send OTP email (best-effort — don't fail registration if email fails)
-    try {
-      await sendOTPEmail(email, otp, name);
-    } catch (emailErr) {
-      console.error("[AUTH] Failed to send OTP email:", emailErr.message);
-    }
-
-    res.status(201).json({
-      success: true,
-      requiresVerification: true,
+    const delivery = await sendVerificationOtp({
       email: user.email,
-      message: "Verification code sent to your email",
+      otp,
+      name,
+      context: "send",
     });
+
+    res.status(201).json(buildOtpResponse({
+      email: user.email,
+      ...delivery,
+    }));
   } catch (error) {
     console.error("[AUTH] Register Error:", error.message);
     if (error.code === 11000) {
@@ -199,16 +232,21 @@ export const resendOTP = async (req, res) => {
     user.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
     await user.save({ validateModifiedOnly: true });
 
-    try {
-      await sendOTPEmail(email, otp, user.name);
-    } catch (emailErr) {
-      console.error("[AUTH] Failed to resend OTP email:", emailErr.message);
-      return res.status(500).json({ error: "Failed to send verification email" });
-    }
+    const delivery = await sendVerificationOtp({
+      email: user.email,
+      otp,
+      name: user.name,
+      context: "resend",
+    });
 
     res.json({
-      success: true,
-      message: "A new verification code has been sent to your email",
+      ...buildOtpResponse({
+        email: user.email,
+        ...delivery,
+      }),
+      message: delivery.emailSent
+        ? "A new verification code has been sent to your email"
+        : "Email delivery failed. Use the development OTP shown here.",
     });
   } catch (error) {
     console.error("[AUTH] Resend OTP Error:", error.message);
@@ -241,10 +279,26 @@ export const login = async (req, res) => {
 
     // Check email verification
     if (!user.isVerified) {
-      return res.status(403).json({
-        error: "Please verify your email first",
-        requiresVerification: true,
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+      await user.save({ validateModifiedOnly: true });
+
+      const delivery = await sendVerificationOtp({
         email: user.email,
+        otp,
+        name: user.name,
+        context: "send",
+      });
+
+      return res.status(403).json({
+        error: delivery.emailSent
+          ? "Please verify your email first. A new verification code has been sent."
+          : "Please verify your email first. Use the development OTP shown here.",
+        ...buildOtpResponse({
+          email: user.email,
+          ...delivery,
+        }),
       });
     }
 

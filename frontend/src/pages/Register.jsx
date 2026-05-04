@@ -36,8 +36,14 @@ const Register = () => {
     try {
       const data = await register(formData.name, formData.email, formData.password, formData.role);
       if (data.requiresVerification) {
-        toast.success("Verification code sent to your email!");
-        navigate("/verify-otp", { state: { email: data.email } });
+        toast.success(data.emailSent === false ? "Use the development verification code." : "Verification code sent to your email!");
+        navigate("/verify-otp", {
+          state: {
+            email: data.email,
+            devOtp: data.devOtp,
+            emailSent: data.emailSent,
+          },
+        });
       } else {
         navigate("/setup-profile");
       }

@@ -14,11 +14,13 @@ export default function VerifyOTP() {
   const navigate = useNavigate();
   const { setUser } = useAuth();
   const email = location.state?.email || "";
+  const initialDevOtp = location.state?.devOtp || "";
 
   const [digits, setDigits] = useState(Array(OTP_LENGTH).fill(""));
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN);
   const [resending, setResending] = useState(false);
+  const [devOtp, setDevOtp] = useState(initialDevOtp);
   const inputRefs = useRef([]);
 
   // Redirect if no email in state
@@ -101,8 +103,10 @@ export default function VerifyOTP() {
     if (resendTimer > 0 || resending) return;
     setResending(true);
     try {
-      await resendOTP({ email });
-      toast.success("New verification code sent!");
+      const res = await resendOTP({ email });
+      const nextDevOtp = res.data?.devOtp || "";
+      setDevOtp(nextDevOtp);
+      toast.success(nextDevOtp ? `Development code: ${nextDevOtp}` : "New verification code sent!");
       setResendTimer(RESEND_COOLDOWN);
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
@@ -152,6 +156,18 @@ export default function VerifyOTP() {
           <p className="login-subtitle">
             We sent a 6-digit code to <strong>{maskedEmail}</strong>
           </p>
+          {devOtp ? (
+            <p
+              style={{
+                marginTop: 12,
+                color: "var(--color-primary, #2176FF)",
+                fontSize: 14,
+                fontWeight: 700,
+              }}
+            >
+              Development code: {devOtp}
+            </p>
+          ) : null}
         </div>
 
         {/* OTP Input */}
