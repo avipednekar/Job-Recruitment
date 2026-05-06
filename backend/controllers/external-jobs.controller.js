@@ -294,10 +294,18 @@ export const fetchExternalJobs = async (req, res) => {
 
       const formattedJobs = uniqueScrapedJobs.map((job, index) => {
         const uniqueId = job.id || `${Date.now()}-${index}`;
+        const qualityScore = job._quality_score || 0;
         
         let localRanking = null;
         if (candidate) {
           localRanking = scoreExternalJobLocally(job, candidateSkills, candidateLocation, candidateYears, inferredRole);
+        }
+
+        // Compute a trending score that blends freshness/quality with match relevance
+        let trendingScore = qualityScore;
+        if (localRanking && localRanking.score > 0) {
+          // 40% quality/freshness + 60% match relevance when logged in
+          trendingScore = (qualityScore * 0.4) + (localRanking.score * 0.6);
         }
 
         return {
@@ -319,16 +327,15 @@ export const fetchExternalJobs = async (req, res) => {
           skills: localRanking ? localRanking.inferredSkills : [],
           match_metrics: localRanking ? { overall_match_score: localRanking.score } : null,
           local_match_score: localRanking ? localRanking.score : null,
+          trending_score: Math.round(trendingScore * 100) / 100,
           match_quality: localRanking 
             ? (localRanking.score >= 60 ? "high" : localRanking.score >= 35 ? "medium" : localRanking.score >= 12 ? "low" : "stretch") 
             : null
         };
       });
 
-      // Sort by score so the best matches are always on top
-      if (candidate) {
-        formattedJobs.sort((a,b) => (b.local_match_score || 0) - (a.local_match_score || 0));
-      }
+      // Sort by trending score (blended freshness + relevance)
+      formattedJobs.sort((a, b) => (b.trending_score || 0) - (a.trending_score || 0));
 
       const meta = {
         total: formattedJobs.length,

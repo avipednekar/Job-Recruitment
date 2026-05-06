@@ -4,6 +4,7 @@ const tones = {
   brand: "badge badge-brand",
   neutral: "badge badge-neutral",
   success: "badge badge-success",
+  warning: "badge badge-warning",
 };
 
 const Badge = ({ children, tone = "neutral", className }) => {

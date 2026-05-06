@@ -8,6 +8,7 @@ import {
   ChevronUp,
   ExternalLink,
   Filter,
+  Flame,
   Heart,
   Lightbulb,
   LoaderCircle,
@@ -149,6 +150,7 @@ function JobCard({ job, recommendation = false, dimmed = false }) {
               {recommendation ? <Badge tone="brand">Recommended</Badge> : null}
               {external ? <Badge tone="neutral">External</Badge> : null}
               {job.remote ? <Badge tone="success">Remote</Badge> : null}
+              {job._isTrending ? <Badge tone="warning"><Flame className="size-3 inline mr-1" />Trending</Badge> : null}
               {job.match_quality === "stretch" ? <Badge tone="neutral">Stretch</Badge> : null}
             </div>
             <h3 className="font-semibold text-lg text-text-primary line-clamp-2">{job.title}</h3>
@@ -585,26 +587,52 @@ export default function Jobs() {
 
 
 
-  // Apply soft filters to external jobs
-  const filteredExternalJobs = useMemo(() => applyFilters(externalJobs), [applyFilters, externalJobs]);
+  // Apply soft filters to external jobs and mark trending ones
+  const filteredExternalJobs = useMemo(() => {
+    const now = Date.now();
+    const TRENDING_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours
+
+    return applyFilters(externalJobs).map((job) => {
+      let isTrending = false;
+      if (job.postedAt) {
+        try {
+          const postedMs = new Date(job.postedAt).getTime();
+          isTrending = !isNaN(postedMs) && (now - postedMs) < TRENDING_WINDOW_MS;
+        } catch {
+          // ignore
+        }
+      }
+      return { ...job, _isTrending: isTrending };
+    });
+  }, [applyFilters, externalJobs]);
 
   // Unified Recommendation Pipeline:
   // Internal recs + backend external recs — consistent with Dashboard
-  // Show high and medium-quality matches so fresher/mid candidates are not over-filtered.
+  // Show high, medium, and low-quality matches so fresher/mid candidates are not over-filtered.
   const uiRecommendations = useMemo(() => {
     const mergedRecommendations = [...recommendations, ...externalRecommendations];
     const seenKeys = new Set();
 
+    // Build a set of listed job keys so we can exclude duplicates
+    const listedJobKeys = new Set(
+      externalJobs.map((job) => getRecommendationKey(job)).filter(Boolean),
+    );
+
     return mergedRecommendations
       .filter((job) => {
         const score = job.match_metrics?.overall_match_score || 0;
-        if (score < 35) return false;
+        if (score < 20) return false;
 
         const key = getRecommendationKey(job);
         if (!key) {
           return true;
         }
+        // Deduplicate within recs
         if (seenKeys.has(key)) {
+          return false;
+        }
+        // Deduplicate against listed "All Jobs"
+        if (listedJobKeys.has(key)) {
           return false;
         }
         seenKeys.add(key);
@@ -615,7 +643,7 @@ export default function Jobs() {
           (right.match_metrics?.overall_match_score || 0) -
           (left.match_metrics?.overall_match_score || 0),
       );
-  }, [recommendations, externalRecommendations]);
+  }, [recommendations, externalRecommendations, externalJobs]);
 
   // Load insights whenever uiRecommendations change and aren't empty
   useEffect(() => {
@@ -775,7 +803,7 @@ export default function Jobs() {
               {uiRecommendations.length ? (
                 <div className="mt-6 space-y-4">
                   <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-5">
-                    {uiRecommendations.slice(0, 9).map((job, index) => (
+                    {uiRecommendations.slice(0, 12).map((job, index) => (
                       <JobCard key={getJobKey(job, index, "rec")} job={job} recommendation />
                     ))}
                   </div>

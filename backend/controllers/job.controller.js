@@ -119,17 +119,37 @@ const fetchRecommendedExternalJobs = async ({
   const query = buildExternalJobQuery(candidate) || inferredRole || "software engineer";
   const queries = buildExternalJobQueries(candidate);
 
-  const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
-    query,
-    queries: queries.length ? queries : [query],
-    location: candidateLocation || "India",
-    page: 1,
-  }, {
-    timeout: AI_SCRAPE_TIMEOUT_MS,
-  });
+  // Build diversified queries for recs (different from what listed-jobs uses)
+  // Include role-only variants and project keyword combos
+  const roleOnly = inferredRole || "Software Developer";
+  const diversifiedQueries = [
+    ...queries,
+    roleOnly,                                         // broad role-only search
+    `${roleOnly} ${candidateLocation || "India"}`,    // role + location
+  ].filter(Boolean);
+
+  // Fetch 2 pages in parallel for a larger recommendation pool
+  const [page1, page2] = await Promise.allSettled([
+    axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
+      query,
+      queries: diversifiedQueries.slice(0, 5),
+      location: candidateLocation || "India",
+      page: 1,
+    }, { timeout: AI_SCRAPE_TIMEOUT_MS }),
+    axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
+      query: roleOnly,
+      queries: diversifiedQueries.slice(2, 5),
+      location: candidateLocation || "India",
+      page: 2,
+    }, { timeout: AI_SCRAPE_TIMEOUT_MS }),
+  ]);
+
+  const jobs1 = page1.status === "fulfilled" ? (page1.value.data?.jobs || []) : [];
+  const jobs2 = page2.status === "fulfilled" ? (page2.value.data?.jobs || []) : [];
+  const allScrapedJobs = [...jobs1, ...jobs2];
 
   return buildExternalRecommendationJobs({
-    jobs: response.data?.jobs || [],
+    jobs: allScrapedJobs,
     candidateSkills,
     candidateLocation,
     candidateYears,
@@ -588,7 +608,7 @@ export const getJobRecommendations = async (req, res) => {
     const responseData = {
       success: true,
       internal: rankedInternal.slice(0, 10),
-      external: externalJobs.slice(0, 30),
+      external: externalJobs.slice(0, 50),
       profile_completeness: profileCompleteness,
     };
 

@@ -1,4 +1,5 @@
 import os
+import math
 from datetime import datetime, timezone
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -41,6 +42,52 @@ DIRECT_JOB_BOARD_URLS = [
 ]
 
 
+def _compute_quality_score(posted_at, description, salary_range, logo, skills):
+    """
+    Compute a 0-100 quality/trending score for a scraped job.
+    Higher = fresher, more complete, more useful to the user.
+    """
+    score = 0
+
+    # Freshness (0-40 points): recently posted jobs get a big boost
+    if posted_at:
+        try:
+            posted_dt = datetime.fromisoformat(str(posted_at).replace("Z", "+00:00"))
+            age_hours = (datetime.now(timezone.utc) - posted_dt).total_seconds() / 3600
+            if age_hours < 0:
+                age_hours = 0
+            # Exponential decay: <24h=40, <48h=35, <72h=28, 1wk=15, 2wk≈5
+            score += max(0, 40 * math.exp(-age_hours / 72))
+        except (ValueError, TypeError):
+            score += 10  # has a date string but unparseable — slight boost over nothing
+    # No date at all → 0 freshness points
+
+    # Description completeness (0-25 points)
+    desc_len = len(description or "")
+    if desc_len > 500:
+        score += 25
+    elif desc_len > 200:
+        score += 15
+    elif desc_len > 50:
+        score += 8
+
+    # Salary info (0-15 points)
+    if salary_range and salary_range.strip():
+        score += 15
+
+    # Logo / branding (0-10 points)
+    if logo and logo.strip():
+        score += 10
+
+    # Skills listed (0-10 points)
+    if isinstance(skills, list) and len(skills) >= 3:
+        score += 10
+    elif isinstance(skills, list) and len(skills) >= 1:
+        score += 5
+
+    return round(score, 2)
+
+
 def _normalize_queries(query):
     if isinstance(query, list):
         raw_queries = query
@@ -75,10 +122,14 @@ def _scrape_site(site, query, location, results_wanted, offset):
         "verbose": VERBOSE,
     }
 
-    if site == "indeed":
-        site_args["country_indeed"] = "india"
+    # Indeed and Glassdoor REQUIRE country_indeed (capitalized country name)
+    if site in ("indeed", "glassdoor"):
+        site_args["country_indeed"] = "India"
     elif site == "google":
-        site_args["google_search_term"] = query
+        site_args["google_search_term"] = f"{query} jobs in {location or 'India'}"
+    elif site == "naukri":
+        # Naukri is India-native, no extra config needed
+        pass
 
     return scrape_jobs(**site_args)
 
@@ -268,33 +319,41 @@ def _fetch_jobspy_jobs(queries, location, page):
             seen_keys.add(key)
 
             description = _safe_str(row.get("description"))
-            if len(description) > 3000:
-                description = description[:3000] + "..."
+            if len(description) > 4000:
+                description = description[:4000] + "..."
             experience_range = _build_experience_range(row)
             if experience_range and experience_range.lower() not in description.lower():
                 description = f"{description}\nExperience: {experience_range}".strip()
+
+            posted_at = _normalize_posted_at(_first_present(row, ["date_posted", "posted_at"]))
+            salary_range = _build_salary_range(row)
+            logo = _safe_str(row.get("company_logo"))
+            skills = _extract_skills(row)
 
             jobs_list.append({
                 "id": _safe_str(row.get("id")) or _safe_str(row.get("job_url")),
                 "title": _safe_str(row.get("title")),
                 "company": _safe_str(row.get("company")),
                 "location": _build_location(row),
-                "logo": _safe_str(row.get("company_logo")),
+                "logo": logo,
                 "employment_type": _safe_str(row.get("job_type")) or "Full-time",
                 "remote": bool(row.get("is_remote", False)),
                 "description": description,
                 "apply_link": _safe_str(row.get("job_url")),
                 "source": _safe_str(row.get("site")) or "external",
-                "postedAt": _normalize_posted_at(_first_present(row, ["date_posted", "posted_at"])),
-                "salary_range": _build_salary_range(row),
+                "postedAt": posted_at,
+                "salary_range": salary_range,
                 "job_level": _safe_str(row.get("job_level")),
                 "experience_range": experience_range,
-                "skills": _extract_skills(row),
+                "skills": skills,
                 "company_url": _safe_str(row.get("company_url")),
+                "_quality_score": _compute_quality_score(posted_at, description, salary_range, logo, skills),
             })
         except Exception as row_err:
             print(f"[JobScraper] Skipping malformed row: {row_err}")
 
+    # Sort by quality so trending/complete jobs appear first
+    jobs_list.sort(key=lambda j: j.get("_quality_score", 0), reverse=True)
     return jobs_list, sorted(seen_sites)
 
 

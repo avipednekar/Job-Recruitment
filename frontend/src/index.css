@@ -271,6 +271,16 @@
     border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
   }
 
+  .badge-warning {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: #c2410c;
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  }
+
+  .dark .badge-warning {
+    color: #fb923c;
+  }
+
   .input-field {
     width: 100%;
     min-height: 2.85rem;
