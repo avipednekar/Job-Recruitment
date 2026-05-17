@@ -242,7 +242,7 @@ export const fetchExternalJobs = async (req, res) => {
 
     const queryStr = String(q || "").trim() || buildExternalJobQuery(candidate) || "software engineer";
     const queries = buildManualSearchVariants(queryStr, candidate);
-    const cacheKey = `${CACHE_VERSION}-localai-${queries.join("|")}-${resolvedLocation}-${page}`;
+    const cacheKey = `${CACHE_VERSION}-jsearch-${queries.join("|")}-${resolvedLocation}-${page}`;
 
     // Check cache
     if (cache.has(cacheKey)) {
@@ -258,21 +258,37 @@ export const fetchExternalJobs = async (req, res) => {
       cache.delete(cacheKey);
     }
 
-    // Call the local AI Python microservice scraper instead of RapidAPI
-    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
-    const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
-      query: queryStr,
-      queries,
-      location: resolvedLocation || "India",
-      page: Number(page),
-    }, {
-      timeout: AI_SCRAPE_TIMEOUT_MS,
+    if (!process.env.RAPIDAPI_KEY) {
+      console.warn("Missing RAPIDAPI_KEY. External jobs disabled.");
+      return res.json({ success: true, jobs: [] });
+    }
+
+    const externalResponse = await axios.get("https://jsearch.p.rapidapi.com/search", {
+      params: { query: `${queryStr} in ${resolvedLocation || "India"}`, num_pages: 1, page: page },
+      headers: {
+        "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+        "x-rapidapi-host": "jsearch.p.rapidapi.com"
+      }
     });
 
-    if (response.data && response.data.jobs) {
-      const scrapedJobs = response.data.jobs;
-      const responseMeta = response.data.meta || {};
-      
+    if (externalResponse.data && externalResponse.data.data) {
+      const scrapedJobs = externalResponse.data.data.map(job => ({
+        id: job.job_id,
+        title: job.job_title,
+        company: job.employer_name,
+        location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", ") || "Remote",
+        description: job.job_description || "",
+        employment_type: job.job_employment_type?.replace(/_/g, " "),
+        remote: job.job_is_remote,
+        logo: job.employer_logo,
+        apply_link: job.job_apply_link,
+        external_url: job.job_apply_link,
+        postedAt: job.job_posted_at_datetime_utc,
+        experience_level: job.job_required_experience?.required_experience_in_months
+          ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
+          : "",
+      }));
+
       // Deduplicate jobs by title, company, and location
       const seenKeys = new Set();
       const freshScrapedJobs = scrapedJobs.filter((job) =>
@@ -334,7 +350,7 @@ export const fetchExternalJobs = async (req, res) => {
         total: formattedJobs.length,
         query: queryStr,
         queries,
-        source_breakdown: responseMeta.source_breakdown || {},
+        source_breakdown: { "jsearch": formattedJobs.length },
       };
 
       // Save to cache

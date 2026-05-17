@@ -119,17 +119,39 @@ const fetchRecommendedExternalJobs = async ({
   const query = buildExternalJobQuery(candidate) || inferredRole || "software engineer";
   const queries = buildExternalJobQueries(candidate);
 
-  const response = await axios.post(`${AI_SERVICE_URL}/scrape_jobs`, {
-    query,
-    queries: queries.length ? queries : [query],
-    location: candidateLocation || "India",
-    page: 1,
-  }, {
-    timeout: AI_SCRAPE_TIMEOUT_MS,
+  if (!process.env.RAPIDAPI_KEY) {
+    console.warn("Missing RAPIDAPI_KEY. External jobs disabled.");
+    return [];
+  }
+
+  const response = await axios.get("https://jsearch.p.rapidapi.com/search", {
+    params: { query: `${query} in ${candidateLocation || "India"}`, num_pages: 1 },
+    headers: {
+      "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+      "x-rapidapi-host": "jsearch.p.rapidapi.com"
+    }
   });
 
+  const rawJobs = response.data?.data || [];
+  const jobs = rawJobs.map(job => ({
+    id: job.job_id,
+    title: job.job_title,
+    company: job.employer_name,
+    location: [job.job_city, job.job_state, job.job_country].filter(Boolean).join(", "),
+    description: job.job_description,
+    employment_type: job.job_employment_type?.replace(/_/g, " "),
+    remote: job.job_is_remote,
+    logo: job.employer_logo,
+    apply_link: job.job_apply_link,
+    external_url: job.job_apply_link,
+    postedAt: job.job_posted_at_datetime_utc,
+    experience_level: job.job_required_experience?.required_experience_in_months
+      ? `${Math.round(job.job_required_experience.required_experience_in_months / 12)}+ years`
+      : "",
+  }));
+
   return buildExternalRecommendationJobs({
-    jobs: response.data?.jobs || [],
+    jobs,
     candidateSkills,
     candidateLocation,
     candidateYears,
