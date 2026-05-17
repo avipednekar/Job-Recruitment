@@ -2,13 +2,9 @@ import axios from "axios";
 import { isValidObjectId } from "mongoose";
 import Job from "../models/Job.js";
 
-const insightsCache = new Map();
-const INSIGHTS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
-const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 12000);
+const AI_SCRAPE_TIMEOUT_MS = Number(process.env.AI_SCRAPE_TIMEOUT_MS || 30000);
 const AI_RECOMMEND_TIMEOUT_MS = Number(process.env.AI_RECOMMEND_TIMEOUT_MS || 10000);
-const EXTERNAL_JOB_MAX_AGE_HOURS = Number(process.env.EXTERNAL_JOB_MAX_AGE_HOURS || 168);
 import {
   buildExternalJobQuery,
   buildExternalJobQueries,
@@ -16,7 +12,6 @@ import {
   estimateCandidateYears,
   inferRecommendationRole,
   scoreExternalJobLocally,
-  isFreshExternalJob,
 } from "../utils/scoring.utils.js";
 
 import {
@@ -67,7 +62,6 @@ const buildExternalRecommendationJobs = ({
   inferredRole = "",
 }) =>
   dedupeScrapedJobs(jobs)
-    .filter((job) => isFreshExternalJob(job, EXTERNAL_JOB_MAX_AGE_HOURS))
     .map((job, index) => {
       const localRanking = scoreExternalJobLocally(
         job,
@@ -448,30 +442,12 @@ export const getMyJobs = async (req, res) => {
    GET /api/jobs/recommendations — Hybrid Recommend Engine
    ────────────────────────────────────────────── */
 
-// Per-user recommendation cache (5-minute TTL)
-const recommendationCache = new Map();
-const RECOMMENDATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
 export const getJobRecommendations = async (req, res) => {
   const userId = req.user?.id;
   const startTime = Date.now();
   console.log("[Job Recs] Request received for user:", userId);
 
-  // ── Check cache first (Promise-based to prevent stampede) ──
-  const cached = recommendationCache.get(userId);
-  if (cached && (Date.now() - cached.timestamp < RECOMMENDATION_CACHE_TTL)) {
-    console.log(`[Job Recs] Cache hit for user ${userId} (${Date.now() - startTime}ms)`);
-    try {
-      const data = await cached.promise;
-      return res.json(data);
-    } catch (error) {
-      console.log(`[Job Recs] Cached promise failed, retrying for user ${userId}`);
-    }
-  }
-
-  console.log("[Job Recs] Cache miss — computing fresh recommendations...");
-
-  const pipelinePromise = (async () => {
+  try {
     // 1. Fetch user's candidate profile (if job_seeker)
     const Candidate = (await import("../models/Candidate.js")).default;
     const candidate = await Candidate.findOne({ user: userId }).lean();
@@ -605,29 +581,14 @@ export const getJobRecommendations = async (req, res) => {
       profileCompleteness.has_education,
     ].filter(Boolean).length * 25;
 
-    const responseData = {
+    console.log(`[Job Recs] Pipeline complete in ${Date.now() - startTime}ms (internal: ${rankedInternal.length}, external: ${externalJobs.length})`);
+    res.json({
       success: true,
       internal: rankedInternal.slice(0, 10),
       external: externalJobs.slice(0, 50),
       profile_completeness: profileCompleteness,
-    };
-
-    return responseData;
-  })();
-
-  // ── Store Promise in cache ──
-  recommendationCache.set(userId, {
-    timestamp: Date.now(),
-    promise: pipelinePromise,
-  });
-
-  try {
-    const data = await pipelinePromise;
-    console.log(`[Job Recs] Pipeline complete in ${Date.now() - startTime}ms (internal: ${data.internal.length}, external: ${data.external.length})`);
-    res.json(data);
+    });
   } catch (error) {
-    // Remove failed promise from cache
-    recommendationCache.delete(userId);
     console.error("=============== CRITICAL ERROR IN JOB RECOMMENDATIONS ===============");
     console.error("Error Message:", error.message);
     console.error("Stack Trace:", error.stack);
@@ -651,17 +612,6 @@ export const getRecommendationInsights = async (req, res) => {
       return res.json({ success: true, insights: null });
     }
 
-    const jobIdsKey = top_jobs.map((j) => j.id || j._id).sort().join("|");
-    const cacheKey = `${req.user.id}-${jobIdsKey}`;
-
-    if (insightsCache.has(cacheKey)) {
-      const cached = insightsCache.get(cacheKey);
-      if (Date.now() - cached.timestamp < INSIGHTS_CACHE_TTL) {
-        return res.json({ success: true, insights: cached.insights, cached: true });
-      }
-      insightsCache.delete(cacheKey);
-    }
-
     const skills = getCandidateSkills(candidate);
     const role = inferRecommendationRole(candidate, skills);
     const experience = Array.isArray(candidate?.experience) ? candidate.experience : [];
@@ -682,7 +632,6 @@ export const getRecommendationInsights = async (req, res) => {
       average: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
     };
 
-    const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:5000";
     const response = await axios.post(`${AI_SERVICE_URL}/recommend_insights`, {
       candidate_summary: candidateSummary,
       top_jobs,
@@ -690,10 +639,6 @@ export const getRecommendationInsights = async (req, res) => {
     });
 
     if (response.data?.success && response.data?.insights) {
-      insightsCache.set(cacheKey, {
-        timestamp: Date.now(),
-        insights: response.data.insights,
-      });
       return res.json({ success: true, insights: response.data.insights });
     }
 
