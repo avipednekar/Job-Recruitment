@@ -371,6 +371,10 @@ export const fetchExternalJobs = async (req, res) => {
     res.json({ success: true, jobs: [] });
   } catch (error) {
     console.error("External Jobs Fetch Error:", error.message);
+    if (error.response && error.response.status === 429) {
+      console.warn("RapidAPI Rate Limit Exceeded (429). Returning empty jobs.");
+      return res.json({ success: true, jobs: [] });
+    }
     res.status(500).json({ error: "Failed to fetch external jobs" });
   }
 };

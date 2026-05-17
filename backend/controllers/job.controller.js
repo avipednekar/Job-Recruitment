@@ -124,13 +124,22 @@ const fetchRecommendedExternalJobs = async ({
     return [];
   }
 
-  const response = await axios.get("https://jsearch.p.rapidapi.com/search", {
-    params: { query: `${query} in ${candidateLocation || "India"}`, num_pages: 1 },
-    headers: {
-      "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-      "x-rapidapi-host": "jsearch.p.rapidapi.com"
+  let response;
+  try {
+    response = await axios.get("https://jsearch.p.rapidapi.com/search", {
+      params: { query: `${query} in ${candidateLocation || "India"}`, num_pages: 1 },
+      headers: {
+        "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+        "x-rapidapi-host": "jsearch.p.rapidapi.com"
+      }
+    });
+  } catch (error) {
+    if (error.response && error.response.status === 429) {
+      console.warn("RapidAPI Rate Limit Exceeded (429) during recommendations. Returning empty.");
+      return [];
     }
-  });
+    throw error;
+  }
 
   const rawJobs = response.data?.data || [];
   const jobs = rawJobs.map(job => ({
